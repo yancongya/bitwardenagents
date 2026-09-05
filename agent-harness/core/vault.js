@@ -31,10 +31,9 @@ export function typeName(t) {
  * @throws when no session exists
  */
 export function clientFromSession(session) {
-  return {
-    client: createClient(session.serverUrl),
-    symmetricKey: session.symmetricKey,
-  };
+  const client = createClient(session.serverUrl);
+  client.accessToken = session.accessToken;
+  return { client, symmetricKey: session.symmetricKey };
 }
 
 /**
