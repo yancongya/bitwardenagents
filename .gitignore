@@ -32,3 +32,15 @@ open-source/
 *.sw?
 .vercel
 .wrangler-pages-build-local/
+
+# Debug / temporary test scripts
+debug-login.js
+test-password-login.js
+test-bitwarden-api.js
+test-browser-login.js
+test-real-account.js
+calculate-hash.py
+auto-test.py
+test-with-real-password.py
+__pycache__/
+*.pyc

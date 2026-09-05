@@ -2476,6 +2476,23 @@ body {
   justify-content: flex-end;
 }
 
+/* Device Verification Modal */
+.device-email {
+  font-weight: 600;
+  color: var(--text-primary);
+  background: var(--bg-secondary);
+  padding: 8px 12px;
+  border-radius: var(--radius-sm);
+  margin-bottom: 16px;
+  font-family: monospace;
+}
+
+.device-verify-code {
+  font-size: 1.2rem;
+  letter-spacing: 2px;
+  text-align: center;
+}
+
 .btn-outline {
   padding: 8px 20px;
   background: transparent;

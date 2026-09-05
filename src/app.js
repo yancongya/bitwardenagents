@@ -1,5 +1,5 @@
 import { BitwardenClient } from './bitwarden-api.js';
-import { makeMasterKey, stretchKey, decryptSymmetricKey, decryptToString, encryptString } from './crypto.js';
+import { makeMasterKey, stretchKey, decryptSymmetricKey, decryptToString, encryptString, hashPassword } from './crypto.js';
 import { analyzeCiphers, buildMergeOperations } from './dedup-engine.js';
 import { searchAndFilter, QUICK_FILTERS, getFilterCounts, SORT_OPTIONS } from './search-engine.js';
 import { analyzeHealth } from './health-engine.js';
@@ -278,6 +278,8 @@ function setupLoginForm() {
     e.preventDefault();
     if (currentAuthMode === 'apikey') {
       await handleApiKeyLogin();
+    } else if (currentAuthMode === 'password') {
+      await handlePasswordLogin();
     }
     // credfile mode is handled by its own event listener
   });
@@ -338,6 +340,226 @@ async function handleApiKeyLogin() {
     console.error('API Key login error:', err);
     setLoginState('error', err.message || t('status.login.fail'));
   }
+}
+
+async function handlePasswordLogin() {
+  const email = $('#password-email').value.trim();
+  const password = $('#password-master').value;
+  const serverUrl = $('#server-url').value;
+
+  if (!email || !password) {
+    setLoginState('error', t('status.fill.all'));
+    return;
+  }
+
+  setLoginState('loading', t('status.connecting'));
+
+  try {
+    client = new BitwardenClient(serverUrl);
+
+    // Step 1: Prelogin to get KDF parameters
+    setLoginState('loading', t('status.prelogin'));
+    const kdfConfig = await client.prelogin(email);
+
+    // Step 2: Derive master key locally
+    setLoginState('loading', `${t('status.kdf')} (${kdfConfig.kdfIterations} ${t('status.kdf.rounds')})...`);
+    const masterKey = await makeMasterKey(password, email, kdfConfig);
+    const stretched = await stretchKey(masterKey);
+
+    // Step 3: Hash password for server authentication
+    setLoginState('loading', t('status.password.hash'));
+    const hashedPassword = await hashPassword(password, masterKey);
+
+    // Step 4: Login with password
+    setLoginState('loading', t('status.password.login'));
+    const loginResult = await client.loginWithPassword(email, hashedPassword);
+
+    // Step 5: Decrypt symmetric key
+    setLoginState('loading', t('status.decrypt.key'));
+    symmetricKey = await decryptSymmetricKey(loginResult.encryptedKey, stretched);
+
+    // Step 6: Sync vault
+    setLoginState('loading', t('status.sync'));
+    vaultData = await client.sync();
+
+    // Step 7: Decrypt and analyze
+    setLoginState('loading', t('status.decrypt.analyze'));
+    allDecryptedCiphers = await decryptAllCiphers(vaultData);
+    analysisResult = analyzeCiphers(allDecryptedCiphers);
+    healthResult = analyzeHealth(allDecryptedCiphers);
+
+    // Decrypt folder names
+    folderMap = {};
+    if (vaultData.Folders) {
+      for (const f of vaultData.Folders) {
+        try {
+          folderMap[f.Id] = await decryptToString(f.Name, symmetricKey) || t('item.unnamed.folder');
+        } catch {
+          folderMap[f.Id] = t('item.decrypt.fail');
+        }
+      }
+    }
+
+    // Save session for persistence
+    saveSession(serverUrl, client.accessToken, symmetricKey);
+
+    enterDashboard();
+  } catch (err) {
+    console.error('Password login error:', err);
+    if (err.type === 'captcha_required') {
+      setLoginState('error', `${t('status.captcha.required')}: ${err.message}`);
+    } else if (err.type === '2fa_required') {
+      setLoginState('error', t('status.2fa.required'));
+    } else if (err.type === 'new_device_required') {
+      // Show device verification modal
+      showDeviceVerificationModal(email, password, serverUrl);
+    } else {
+      setLoginState('error', err.message || t('status.login.fail'));
+    }
+  }
+}
+
+// 测试函数 - 可以在浏览器控制台中调用
+window.testPasswordLogin = async function(email, password) {
+  console.log('=== 测试密码登录 ===');
+  console.log('邮箱:', email);
+  console.log('密码长度:', password.length);
+
+  try {
+    const client = new BitwardenClient('');
+
+    // Step 1: Prelogin
+    console.log('1. Prelogin...');
+    const kdfConfig = await client.prelogin(email);
+    console.log('KDF 配置:', kdfConfig);
+
+    // Step 2: 派生主密钥
+    console.log('2. 派生主密钥...');
+    const masterKey = await makeMasterKey(password, email, kdfConfig);
+    console.log('主密钥 (hex):', Array.from(new Uint8Array(masterKey)).map(b => b.toString(16).padStart(2, '0')).join(''));
+
+    // Step 3: 哈希密码
+    console.log('3. 哈希密码...');
+    const hashedPassword = await hashPassword(password, masterKey);
+    console.log('密码哈希 (base64):', hashedPassword);
+
+    // Step 4: 登录
+    console.log('4. 登录...');
+    const loginResult = await client.loginWithPassword(email, hashedPassword);
+    console.log('登录成功!', loginResult);
+
+    return loginResult;
+  } catch (err) {
+    console.error('登录失败:', err);
+    throw err;
+  }
+};
+
+function showDeviceVerificationModal(email, password, serverUrl) {
+  // Create modal for device verification
+  const modal = document.createElement('div');
+  modal.className = 'modal-overlay';
+  modal.innerHTML = `
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3>${t('device.verify.title')}</h3>
+        <button type="button" class="modal-close" id="device-modal-close">&times;</button>
+      </div>
+      <div class="modal-body">
+        <p>${t('device.verify.info')}</p>
+        <p class="device-email">${email}</p>
+        <div class="form-group">
+          <label for="device-verify-code">${t('device.verify.code')}</label>
+          <input type="text" id="device-verify-code" placeholder="${t('device.verify.code.placeholder')}" autocomplete="one-time-code" />
+        </div>
+        <div id="device-verify-status" class="login-status"></div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn-secondary" id="device-verify-cancel">${t('modal.cancel')}</button>
+        <button type="button" class="btn-primary" id="device-verify-submit">${t('device.verify.submit')}</button>
+      </div>
+    </div>
+  `;
+
+  document.body.appendChild(modal);
+
+  // Add event listeners
+  const closeBtn = modal.querySelector('#device-modal-close');
+  const cancelBtn = modal.querySelector('#device-verify-cancel');
+  const submitBtn = modal.querySelector('#device-verify-submit');
+  const codeInput = modal.querySelector('#device-verify-code');
+  const statusEl = modal.querySelector('#device-verify-status');
+
+  const closeModal = () => {
+    modal.remove();
+    setLoginState('idle', '');
+  };
+
+  closeBtn.addEventListener('click', closeModal);
+  cancelBtn.addEventListener('click', closeModal);
+
+  submitBtn.addEventListener('click', async () => {
+    const code = codeInput.value.trim();
+    if (!code) {
+      statusEl.textContent = t('status.fill.all');
+      statusEl.className = 'login-status error';
+      return;
+    }
+
+    statusEl.textContent = t('device.verify.processing');
+    statusEl.className = 'login-status loading';
+    submitBtn.disabled = true;
+
+    try {
+      // Re-derive keys for device verification
+      setLoginState('loading', t('status.prelogin'));
+      const kdfConfig = await client.prelogin(email);
+      
+      setLoginState('loading', `${t('status.kdf')} (${kdfConfig.kdfIterations} ${t('status.kdf.rounds')})...`);
+      const masterKey = await makeMasterKey(password, email, kdfConfig);
+      const stretched = await stretchKey(masterKey);
+
+      // Verify device with code
+      const loginResult = await client.verifyNewDevice(email, code);
+
+      // Decrypt symmetric key
+      symmetricKey = await decryptSymmetricKey(loginResult.encryptedKey, stretched);
+
+      // Sync vault
+      vaultData = await client.sync();
+
+      // Decrypt and analyze
+      allDecryptedCiphers = await decryptAllCiphers(vaultData);
+      analysisResult = analyzeCiphers(allDecryptedCiphers);
+      healthResult = analyzeHealth(allDecryptedCiphers);
+
+      // Decrypt folder names
+      folderMap = {};
+      if (vaultData.Folders) {
+        for (const f of vaultData.Folders) {
+          try {
+            folderMap[f.Id] = await decryptToString(f.Name, symmetricKey) || t('item.unnamed.folder');
+          } catch {
+            folderMap[f.Id] = t('item.decrypt.fail');
+          }
+        }
+      }
+
+      // Save session for persistence
+      saveSession(serverUrl, client.accessToken, symmetricKey);
+
+      closeModal();
+      enterDashboard();
+    } catch (err) {
+      console.error('Device verification error:', err);
+      statusEl.textContent = err.message || t('status.device.verify.fail');
+      statusEl.className = 'login-status error';
+      submitBtn.disabled = false;
+    }
+  });
+
+  // Focus on code input
+  codeInput.focus();
 }
 
 function setLoginState(state, message) {

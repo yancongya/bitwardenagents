@@ -26,7 +26,10 @@ export async function makeMasterKey(password, email, kdfConfig) {
     const argon2 = await import(/* @vite-ignore */ 'argon2-browser');
     const result = await argon2.hash({
       pass: passwordBytes,
-      salt: createArgon2Salt(saltBytes),
+      // createArgon2Salt() uses Web Crypto and therefore returns a Promise.
+      // Passing that Promise directly makes argon2-browser derive a key with
+      // the wrong salt, which later appears as invalid_username_or_password.
+      salt: await createArgon2Salt(saltBytes),
       time: kdfConfig.kdfIterations,
       mem: kdfConfig.kdfMemory * 1024, // MB to KB
       parallelism: kdfConfig.kdfParallelism,
@@ -87,6 +90,9 @@ async function hkdfExpand(prk, info, length) {
 /**
  * Hash the master password for sending to the server
  * = PBKDF2(masterKey, password, 1 iteration)
+ * According to Bitwarden security whitepaper:
+ * - Payload: Master Key
+ * - Salt: Master Password
  */
 export async function hashPassword(password, masterKey) {
   const passwordBytes = new TextEncoder().encode(password);

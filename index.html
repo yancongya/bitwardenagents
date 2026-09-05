@@ -105,7 +105,8 @@
 
           <div class="auth-mode-toggle">
             <button type="button" class="auth-tab active" data-mode="apikey" data-i18n="login.tab.apikey">🔑 API Key（推荐）</button>
-            <button type="button" class="auth-tab" data-mode="credfile" data-i18n="login.tab.credfile">🔐 加密文件</button>
+            <button type="button" class="auth-tab" data-mode="password" data-i18n="login.tab.password">🔐 密码登录</button>
+            <button type="button" class="auth-tab" data-mode="credfile" data-i18n="login.tab.credfile">📁 加密文件</button>
           </div>
 
           <!-- API Key Mode -->
@@ -128,6 +129,24 @@
             <div class="form-group">
               <label for="api-password" data-i18n="login.password.label">主密码（仅本地解密，不上传）</label>
               <input type="password" id="api-password" data-i18n="login.password.placeholder" placeholder="你的主密码" autocomplete="current-password" />
+            </div>
+          </div>
+
+          <!-- Password Login Mode -->
+          <div id="auth-password" class="auth-panel">
+            <div class="auth-info">
+              <p data-i18n="login.password.info" data-i18n-html>🔐 使用 Bitwarden 官方密码登录。主密码仅在本地用于密钥派生，不会发送到服务器。</p>
+            </div>
+            <div class="form-group">
+              <label for="password-email" data-i18n="login.email.label">邮箱</label>
+              <input type="email" id="password-email" data-i18n="login.email.placeholder" placeholder="你的 Bitwarden 邮箱" autocomplete="username" />
+            </div>
+            <div class="form-group">
+              <label for="password-master" data-i18n="login.password.label">主密码</label>
+              <input type="password" id="password-master" data-i18n="login.password.placeholder" placeholder="你的主密码" autocomplete="current-password" />
+            </div>
+            <div class="auth-info">
+              <p data-i18n="login.password.warning" data-i18n-html>⚠️ 此方式可能触发 CAPTCHA 验证，建议使用 API Key 登录。</p>
             </div>
           </div>
 

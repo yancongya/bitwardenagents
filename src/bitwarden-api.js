@@ -33,7 +33,10 @@ export class BitwardenClient {
     }
     this.accessToken = null;
     this.refreshToken = null;
-    this.clientVersion = '2025.1.0';
+    // Keep the identity API client version aligned with the current Bitwarden
+    // web client. Older versions can be rejected by newer auth policies.
+    this.clientVersion = '2026.8.1';
+    this.deviceIdentifier = crypto.randomUUID();
   }
 
   /**
@@ -70,7 +73,7 @@ export class BitwardenClient {
       client_secret: clientSecret,
       scope: 'api',
       deviceType: '9',
-      deviceIdentifier: crypto.randomUUID(),
+      deviceIdentifier: this.deviceIdentifier,
       deviceName: 'Bitwarden Dedup Tool',
     });
 
@@ -110,6 +113,8 @@ export class BitwardenClient {
    * Login with master password (may trigger CAPTCHA)
    */
   async loginWithPassword(email, hashedPassword, twoFactorToken = null, captchaResponse = null) {
+    console.log('Password login request:', { email, hashedPassword: hashedPassword.substring(0, 20) + '...' });
+    
     const body = new URLSearchParams({
       grant_type: 'password',
       username: email,
@@ -117,7 +122,7 @@ export class BitwardenClient {
       scope: 'api offline_access',
       client_id: 'web',
       deviceType: '9',
-      deviceIdentifier: crypto.randomUUID(),
+      deviceIdentifier: this.deviceIdentifier,
       deviceName: 'Bitwarden Dedup Tool',
     });
 
@@ -130,19 +135,31 @@ export class BitwardenClient {
       body.set('captchaResponse', captchaResponse);
     }
 
+    console.log('Password login headers:', {
+      'Content-Type': 'application/x-www-form-urlencoded',
+      'Bitwarden-Client-Version': this.clientVersion,
+      'Bitwarden-Client-Name': 'web',
+      'Auth-Email': btoa(email),
+    });
+
     const res = await fetch(`${this.identityUrl}/connect/token`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/x-www-form-urlencoded',
         'Bitwarden-Client-Version': this.clientVersion,
         'Bitwarden-Client-Name': 'web',
+        'Auth-Email': btoa(email),
       },
       body: body.toString(),
     });
 
     const data = await res.json();
+    console.log('Password login response:', { status: res.status, data });
 
     if (!res.ok) {
+      console.log('Login error response:', data);
+      console.log('Full error details:', JSON.stringify(data, null, 2));
+      
       // Check for CAPTCHA requirement
       if (data.HCaptcha_SiteKey) {
         throw {
@@ -155,7 +172,76 @@ export class BitwardenClient {
       if (data.TwoFactorProviders2 || data.error_description?.includes('Two factor')) {
         throw { type: '2fa_required', providers: data.TwoFactorProviders2 };
       }
-      throw new Error(data.error_description || data.ErrorModel?.Message || `Login failed: ${res.status}`);
+      // Check for new device verification
+      if (data.error_description?.includes('New device') || data.error_description?.includes('device verification') || 
+          data.error?.includes('New device') || data.error?.includes('device verification') ||
+          data.ErrorModel?.Message?.includes('new device verification')) {
+        throw {
+          type: 'new_device_required',
+          message: 'New device verification required. Please check your email for verification code.',
+        };
+      }
+      
+      // 提供更详细的错误信息
+      const errorMessage = data.error_description || data.ErrorModel?.Message || `Login failed: ${res.status}`;
+      const errorDetails = {
+        status: res.status,
+        error: data.error,
+        error_description: data.error_description,
+        ErrorModel: data.ErrorModel,
+        TwoFactorProviders2: data.TwoFactorProviders2,
+        HCaptcha_SiteKey: data.HCaptcha_SiteKey,
+      };
+      
+      console.error('Login failed with details:', errorDetails);
+      throw new Error(`${errorMessage}\n\nError details: ${JSON.stringify(errorDetails, null, 2)}`);
+    }
+
+    this.accessToken = data.access_token;
+    this.refreshToken = data.refresh_token;
+
+    return {
+      accessToken: data.access_token,
+      encryptedKey: data.Key ?? data.key,
+      encryptedPrivateKey: data.PrivateKey ?? data.privateKey,
+    };
+  }
+
+  /**
+   * Verify new device with email code
+   * This method should be called after initial login attempt fails with new_device_required error
+   */
+  async verifyNewDevice(email, code) {
+    console.log('Device verification request:', { email, code: code.substring(0, 3) + '***', deviceIdentifier: this.deviceIdentifier });
+    
+    const body = new URLSearchParams({
+      grant_type: 'password',
+      username: email,
+      password: code,
+      scope: 'api offline_access',
+      client_id: 'web',
+      deviceType: '9',
+      deviceIdentifier: this.deviceIdentifier,
+      deviceName: 'Bitwarden Dedup Tool',
+      NewDeviceOtp: code,
+    });
+
+    const res = await fetch(`${this.identityUrl}/connect/token`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+        'Bitwarden-Client-Version': this.clientVersion,
+        'Bitwarden-Client-Name': 'web',
+        'Auth-Email': btoa(email),
+      },
+      body: body.toString(),
+    });
+
+    const data = await res.json();
+    console.log('Device verification response:', { status: res.status, data });
+
+    if (!res.ok) {
+      throw new Error(data.error_description || data.ErrorModel?.Message || `Device verification failed: ${res.status}`);
     }
 
     this.accessToken = data.access_token;
