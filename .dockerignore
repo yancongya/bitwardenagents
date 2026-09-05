@@ -1,0 +1,21 @@
+node_modules
+dist
+.git
+.DS_Store
+*.log
+.env
+.env.*
+
+# Agent-harness has its own package.json, but deps come from the root.
+agent-harness/node_modules
+
+# Test / debug artefacts
+debug-login.js
+test-*.js
+test-*.py
+calculate-hash.py
+auto-test.py
+__pycache__
+*.pyc
+*.bak
+*.tmp

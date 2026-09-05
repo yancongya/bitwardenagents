@@ -39,6 +39,7 @@ test-password-login.js
 test-bitwarden-api.js
 test-browser-login.js
 test-real-account.js
+test-nodecrypto.mjs
 calculate-hash.py
 auto-test.py
 test-with-real-password.py

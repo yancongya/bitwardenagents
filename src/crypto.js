@@ -22,8 +22,19 @@ export async function makeMasterKey(password, email, kdfConfig) {
   const saltBytes = new TextEncoder().encode(email.toLowerCase().trim());
 
   if (kdfConfig.kdf === KdfType.Argon2id) {
-    // Dynamic import for argon2-browser (only loaded if needed)
-    const argon2 = await import(/* @vite-ignore */ 'argon2-browser');
+    // Dynamic import for argon2-browser (only loaded if needed).
+    // argon2-browser is a CommonJS/UMD bundle: its API lives on the default
+    // export. Under Node ESM (and some bundler configs) named properties such
+    // as `ArgonType` are NOT hoisted, so `argon2.ArgonType` is undefined and
+    // Argon2id derivation crashes. Resolve through `.default` when present.
+    const argon2mod = await import(/* @vite-ignore */ 'argon2-browser');
+    const argon2 = argon2mod.default || argon2mod;
+    if (!argon2.ArgonType || argon2.ArgonType.Argon2id === undefined) {
+      throw new Error(
+        'argon2-browser loaded but ArgonType is unavailable. ' +
+        'In Node.js use the native argon2 provider (see agent-harness).'
+      );
+    }
     const result = await argon2.hash({
       pass: passwordBytes,
       // createArgon2Salt() uses Web Crypto and therefore returns a Promise.
@@ -36,7 +47,7 @@ export async function makeMasterKey(password, email, kdfConfig) {
       hashLen: 32,
       type: argon2.ArgonType.Argon2id,
     });
-    return result.hash;
+    return new Uint8Array(result.hash);
   }
 
   // PBKDF2-SHA256

@@ -1,0 +1,27 @@
+{
+  "name": "bwvault",
+  "version": "1.0.0",
+  "description": "Headless CLI for Bitwarden Vault Manager — inspect, analyse and clean a Bitwarden vault without exposing plaintext",
+  "type": "module",
+  "bin": {
+    "bwvault": "./bin/bwvault.js"
+  },
+  "scripts": {
+    "start": "node bin/bwvault.js",
+    "test": "node tests/run.js"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "dependencies": {
+    "@node-rs/argon2": "^2.0.0"
+  },
+  "keywords": [
+    "bitwarden",
+    "password-manager",
+    "cli",
+    "vault",
+    "zero-knowledge"
+  ],
+  "license": "MIT"
+}
