@@ -7,6 +7,7 @@ import { generateDemoData } from './demo-data.js';
 import { t, getLocale, setLocale, initLocale } from './i18n.js';
 import { getTheme, setTheme, toggleTheme, initTheme } from './theme.js';
 import { saveAs } from 'file-saver';
+import './design/tokens.css';
 import './style.css';
 import { escHtml, linkUri, escAttr } from './utils/html.js';
 import { showToast, showConfirm, closeModal } from './ui/toast-modal.js';
@@ -124,7 +125,7 @@ async function _requestPinAndGetSession() {
         display:flex;align-items:center;justify-content:center;z-index:10000">
         <div style="background:var(--surface,#1e1e2e);border-radius:12px;padding:32px;
           min-width:320px;text-align:center;box-shadow:0 8px 32px rgba(0,0,0,0.4)">
-          <h3 style="margin:0 0 16px;color:var(--text,#e0e0e0)">🔐 访问验证</h3>
+          <h3 style="margin:0 0 16px;color:var(--text,#e0e0e0)">访问验证</h3>
           <p style="margin:0 0 16px;color:var(--text-secondary,#999);font-size:14px">
             请输入 Web 访问 PIN</p>
           <input id="pin-input" type="password" maxlength="8" autocomplete="off"
@@ -1003,7 +1004,7 @@ function setupBatchOps() {
         updateSidebarBadges();
         // Force immediate re-render of current view
         switchView(currentView);
-        showToast(`✅ ${count} ${t('dup.items')} ${t('detail.delete.trash')}`, 'success');
+        showToast(`${count} ${t('dup.items')} ${t('detail.delete.trash')}`, 'success');
 
         // ── Phase 2: 后台服务端删除 ──
         try {
@@ -1035,7 +1036,7 @@ function updateBatchBar() {
   const bar = $('#batch-bar');
   if (selectedItems.size > 0) {
     bar.style.display = 'flex';
-    $('#batch-count').textContent = `☑ ${selectedItems.size} ${t('batch.selected')}`;
+    $('#batch-count').innerHTML = `${icon('check', { size: 13 })} ${selectedItems.size} ${t('batch.selected')}`;
   } else {
     bar.style.display = 'none';
   }
@@ -1121,7 +1122,7 @@ function renderFolderList() {
           }
           updateSidebarBadges();
           renderFolderList();
-          showToast(`✅ ${folderName} ${t('folder.deleted.ok')}`, 'success');
+          showToast(`${folderName} ${t('folder.deleted.ok')}`, 'success');
 
           // ── Phase 2: 后台服务端删除 ──
           try {
@@ -1169,10 +1170,10 @@ function showFolderNameModal(mode, folderId = null) {
       // ── Phase 1: 乐观热更新 ──
       closeFolderModal();
       if (mode === 'create') {
-        showToast(`✅ ${name} ${t('folder.created.ok')}`, 'success');
+        showToast(`${name} ${t('folder.created.ok')}`, 'success');
       } else {
         if (isDemoMode) folderMap[folderId] = name;
-        showToast(`✅ ${t('folder.renamed.ok')} ${name}`, 'success');
+        showToast(`${t('folder.renamed.ok')} ${name}`, 'success');
       }
 
       // ── Phase 2: 后台服务端操作 ──
@@ -1195,7 +1196,7 @@ function showFolderNameModal(mode, folderId = null) {
       // ── Phase 3: 后台 resync ──
       resyncVault();
     } catch (err) {
-      showToast(`❌ ${t('toast.op.fail')}: ${err.message}`, 'error');
+      showToast(`${t('toast.op.fail')}: ${err.message}`, 'error');
     } finally {
       confirmBtn.disabled = false;
       confirmBtn.textContent = t('modal.confirm');
@@ -1216,11 +1217,11 @@ function showMoveFolderModal() {
 
   list.innerHTML = `
     <button class="move-folder-option" data-folder-id="__none__">
-      <span>📂</span> <span>${t('folder.none')}</span>
+      <span>${icon('folder', { size: 13 })}</span> <span>${t('folder.none')}</span>
     </button>
     ${folderList.map(f => `
       <button class="move-folder-option" data-folder-id="${f.id}">
-        <span>📁</span> <span>${escHtml(f.name)}</span>
+        <span>${icon('folder', { size: 13 })}</span> <span>${escHtml(f.name)}</span>
       </button>
     `).join('')}
   `;
@@ -1252,14 +1253,14 @@ function showMoveFolderModal() {
         renderFolderList();
         switchView(currentView);
 
-        showToast(`✅ ${ids.length} ${t('dup.items')} ${t('folder.move.ok')} ${folderName}`, 'success');
+        showToast(`${ids.length} ${t('dup.items')} ${t('folder.move.ok')} ${folderName}`, 'success');
 
         // Server-side move (background)
         await client.bulkMoveCiphersToFolder(ids, realFolderId);
         // Background resync
         resyncVault();
       } catch (err) {
-        showToast(`❌ ${t('toast.op.fail')}: ${err.message}`, 'error');
+        showToast(`${t('toast.op.fail')}: ${err.message}`, 'error');
         resyncVault();
       }
     });
@@ -1290,11 +1291,11 @@ function renderFolderView() {
     });
   }
 
-  const typeIcons = { 1: '🔐', 2: '📝', 3: '💳', 4: '🪪' };
+  const typeIcons = { 1: 'lock', 2: 'note', 3: 'card', 4: 'identity' };
 
   container.innerHTML = `
     <div class="section-header">
-      <span class="section-title">📁 ${escHtml(folderName)}</span>
+      <span class="section-title">${icon('folder', { size: 15 })} ${escHtml(folderName)}</span>
       <span class="results-count">${items.length} ${t('item.items')}</span>
     </div>
     <div class="section-header">
@@ -1305,17 +1306,17 @@ function renderFolderView() {
     ${items.map(c => `
       <div class="vault-item ${selectedItems.has(c.id) ? 'selected' : ''}" data-id="${c.id}">
         <input type="checkbox" class="item-checkbox item-select-cb" data-id="${c.id}" ${selectedItems.has(c.id) ? 'checked' : ''}/>
-        <div class="item-type-icon">${typeIcons[c.type] || '📄'}</div>
+        <div class="item-type-icon">${icon(typeIcons[c.type] || 'file', { size: 15 })}</div>
         <div class="item-info">
           <div class="item-name">${escHtml(c.decrypted?.name || t('item.untitled'))}</div>
           <div class="item-meta">
-            ${c.decrypted?.username ? `<span>👤 ${escHtml(c.decrypted.username)}</span>` : ''}
-            ${(c.decrypted?.uris?.filter(Boolean) || []).length > 0 ? `<span>🔗 ${linkUri(c.decrypted.uris[0])}</span>` : ''}
+            ${c.decrypted?.username ? `<span>${icon('user', { size: 12 })} ${escHtml(c.decrypted.username)}</span>` : ''}
+            ${(c.decrypted?.uris?.filter(Boolean) || []).length > 0 ? `<span>${icon('link', { size: 12 })} ${linkUri(c.decrypted.uris[0])}</span>` : ''}
           </div>
         </div>
         <div class="item-tags">
-          ${(c.raw?.Login?.Fido2Credentials?.length || 0) > 0 ? '<span class="mini-tag passkey">🔑</span>' : ''}
-          ${c.decrypted?.totp ? '<span class="mini-tag totp">🕐</span>' : ''}
+          ${(c.raw?.Login?.Fido2Credentials?.length || 0) > 0 ? `<span class="mini-tag passkey">${icon('key', { size: 12 })}</span>` : ''}
+          ${c.decrypted?.totp ? '<span class="mini-tag totp">' + icon('clock', { size: 12 }) + '</span>' : ''}
         </div>
       </div>
     `).join('') || `<div class="empty-state">${t('folder.view.empty')}</div>`}
@@ -1397,8 +1398,8 @@ function openDetailDrawer(cipher) {
         <div class="detail-label">${t('detail.password')}</div>
         <div class="detail-value">
           <span class="detail-pw" id="pw-display">${'•'.repeat(Math.min(pw.length, 20))}</span>
-          <button class="pw-toggle" onclick="togglePw(this, '${escAttr(pw)}')">👁</button>
-          <button class="copy-btn" onclick="copyText('${escAttr(pw)}', this)">📋</button>
+          <button class="pw-toggle" onclick="togglePw(this, '${escAttr(pw)}')">${icon('eye', { size: 14 })}</button>
+          <button class="copy-btn" onclick="copyText('${escAttr(pw)}', this)">${icon('copy', { size: 14 })}</button>
         </div>
       </div>`;
     }
@@ -1408,8 +1409,8 @@ function openDetailDrawer(cipher) {
         <div class="detail-label">${t('detail.totp.key')}</div>
         <div class="detail-value">
           <span class="detail-pw">${'•'.repeat(12)}</span>
-          <button class="pw-toggle" onclick="togglePw(this, '${escAttr(d.totp)}')">👁</button>
-          <button class="copy-btn" onclick="copyText('${escAttr(d.totp)}', this)">📋</button>
+          <button class="pw-toggle" onclick="togglePw(this, '${escAttr(d.totp)}')">${icon('eye', { size: 14 })}</button>
+          <button class="copy-btn" onclick="copyText('${escAttr(d.totp)}', this)">${icon('copy', { size: 14 })}</button>
         </div>
       </div>`;
     }
@@ -1422,7 +1423,7 @@ function openDetailDrawer(cipher) {
     const passkeys = cipher.raw?.Login?.Fido2Credentials || [];
     if (passkeys.length > 0) {
       html += `<div class="detail-field"><div class="detail-label">${t('detail.passkey')}</div>
-        <div class="detail-value"><span class="has-passkey">🔑 ${passkeys.length}${t('detail.passkey.count')}</span></div></div>`;
+        <div class="detail-value"><span class="has-passkey">${icon('key', { size: 13 })} ${passkeys.length}${t('detail.passkey.count')}</span></div></div>`;
     }
     html += '</div>';
   }
@@ -1434,7 +1435,7 @@ function openDetailDrawer(cipher) {
     uris.forEach((u, idx) => {
       html += `<div class="detail-field"><div class="detail-label">${t('detail.uri')} ${uris.length > 1 ? idx + 1 : ''}</div>
         <div class="detail-value">${escHtml(u)}
-          <button class="copy-btn" onclick="copyText('${escAttr(u)}', this)">📋</button>
+          <button class="copy-btn" onclick="copyText('${escAttr(u)}', this)">${icon('copy', { size: 14 })}</button>
         </div></div>`;
     });
     html += '</div>';
@@ -1449,8 +1450,8 @@ function openDetailDrawer(cipher) {
       html += `<div class="detail-field"><div class="detail-label">${t('detail.card.number')}</div>
         <div class="detail-value">
           <span class="detail-pw">${'•'.repeat(12)}</span>
-          <button class="pw-toggle" onclick="togglePw(this, '${escAttr(d.card.number)}')">👁</button>
-          <button class="copy-btn" onclick="copyText('${escAttr(d.card.number)}', this)">📋</button>
+          <button class="pw-toggle" onclick="togglePw(this, '${escAttr(d.card.number)}')">${icon('eye', { size: 14 })}</button>
+          <button class="copy-btn" onclick="copyText('${escAttr(d.card.number)}', this)">${icon('copy', { size: 14 })}</button>
         </div></div>`;
     }
     if (d.card.expMonth || d.card.expYear) {
@@ -1460,8 +1461,8 @@ function openDetailDrawer(cipher) {
       html += `<div class="detail-field"><div class="detail-label">${t('detail.card.cvv')}</div>
         <div class="detail-value">
           <span class="detail-pw">•••</span>
-          <button class="pw-toggle" onclick="togglePw(this, '${escAttr(d.card.code)}')">👁</button>
-          <button class="copy-btn" onclick="copyText('${escAttr(d.card.code)}', this)">📋</button>
+          <button class="pw-toggle" onclick="togglePw(this, '${escAttr(d.card.code)}')">${icon('eye', { size: 14 })}</button>
+          <button class="copy-btn" onclick="copyText('${escAttr(d.card.code)}', this)">${icon('copy', { size: 14 })}</button>
         </div></div>`;
     }
     html += '</div>';
@@ -1497,8 +1498,8 @@ function openDetailDrawer(cipher) {
       html += `<div class="detail-field"><div class="detail-label">${t('detail.ssh.private')}</div>
         <div class="detail-value">
           <span class="detail-pw">${'•'.repeat(20)}</span>
-          <button class="pw-toggle" onclick="togglePw(this, '${escAttr(ssh.privateKey)}')">👁</button>
-          <button class="copy-btn" onclick="copyText('${escAttr(ssh.privateKey)}', this)">📋</button>
+          <button class="pw-toggle" onclick="togglePw(this, '${escAttr(ssh.privateKey)}')">${icon('eye', { size: 14 })}</button>
+          <button class="copy-btn" onclick="copyText('${escAttr(ssh.privateKey)}', this)">${icon('copy', { size: 14 })}</button>
         </div></div>`;
     }
     html += '</div>';
@@ -1512,8 +1513,8 @@ function openDetailDrawer(cipher) {
         html += `<div class="detail-field"><div class="detail-label">${escHtml(f.name || t('detail.field.noname'))}</div>
           <div class="detail-value">
             <span class="detail-pw">${'•'.repeat(8)}</span>
-            <button class="pw-toggle" onclick="togglePw(this, '${escAttr(f.value || '')}')">👁</button>
-            <button class="copy-btn" onclick="copyText('${escAttr(f.value || '')}', this)">📋</button>
+            <button class="pw-toggle" onclick="togglePw(this, '${escAttr(f.value || '')}')">${icon('eye', { size: 14 })}</button>
+            <button class="copy-btn" onclick="copyText('${escAttr(f.value || '')}', this)">${icon('copy', { size: 14 })}</button>
           </div></div>`;
       } else if (f.type === 2) { // boolean
         html += detailField(f.name || t('detail.field.noname'), f.value === 'true' ? t('detail.field.yes') : t('detail.field.no'), false);
@@ -1526,7 +1527,7 @@ function openDetailDrawer(cipher) {
 
   // ── Section: Password History ──
   if (d.passwordHistory && d.passwordHistory.length > 0) {
-    html += `<div class="detail-section"><div class="detail-section-title">🕐 ${t('detail.password.history')} (${d.passwordHistory.length})</div>`;
+    html += `<div class="detail-section"><div class="detail-section-title">${icon('clock', { size: 14 })} ${t('detail.password.history')} (${d.passwordHistory.length})</div>`;
     d.passwordHistory.forEach((ph, idx) => {
       const pw = ph.password || '';
       const date = ph.lastUsedDate ? new Date(ph.lastUsedDate).toLocaleString(getLocale() === 'zh' ? 'zh-CN' : 'en-US') : '';
@@ -1534,8 +1535,8 @@ function openDetailDrawer(cipher) {
         <div class="detail-label">${date || `#${idx + 1}`}</div>
         <div class="detail-value">
           <span class="detail-pw">${'•'.repeat(Math.min(pw.length, 16))}</span>
-          <button class="pw-toggle" onclick="togglePw(this, '${escAttr(pw)}')">👁</button>
-          <button class="copy-btn" onclick="copyText('${escAttr(pw)}', this)">📋</button>
+          <button class="pw-toggle" onclick="togglePw(this, '${escAttr(pw)}')">${icon('eye', { size: 14 })}</button>
+          <button class="copy-btn" onclick="copyText('${escAttr(pw)}', this)">${icon('copy', { size: 14 })}</button>
         </div>
       </div>`;
     });
@@ -1606,12 +1607,12 @@ function showDecryptLog(cipher) {
   let html = `<div class="decrypt-log-overlay" id="decrypt-log-overlay">
     <div class="decrypt-log-modal">
       <div class="decrypt-log-header">
-        <span>📋 ${t('log.title')} · ${escHtml(cipher.decrypted?.name || t('item.untitled'))}</span>
+        <span>${icon('file', { size: 13 })} ${t('log.title')} · ${escHtml(cipher.decrypted?.name || t('item.untitled'))}</span>
         <button class="decrypt-log-close" id="decrypt-log-close">✕</button>
       </div>
       <div class="decrypt-log-summary">
         <span>ID: <code>${cipher.id}</code></span>
-        <span>${t('log.status')}: ${errors.length > 0 ? `<span style="color:#f87171">❌ ${errors.length} ${t('log.fields.failed')}</span>` : `<span style="color:#4ade80">✅ ${t('log.all.ok')}</span>`}</span>
+        <span>${t('log.status')}: ${errors.length > 0 ? `<span style="color:#f87171">${icon('xmark', { size: 13 })} ${errors.length} ${t('log.fields.failed')}</span>` : `<span style="color:#4ade80">${icon('check', { size: 13 })} ${t('log.all.ok')}</span>`}</span>
         ${errors.length > 0 ? `<span>${t('log.failed.fields')}: <code>${errors.join(', ')}</code></span>` : ''}
       </div>
       <div class="decrypt-log-body">
@@ -1619,9 +1620,9 @@ function showDecryptLog(cipher) {
           <thead><tr><th>${t('log.field')}</th><th>${t('log.status')}</th><th>${t('log.detail')}</th></tr></thead>
           <tbody>
             ${log.map(entry => {
-              const icon = entry.status === 'ok' ? '✅' : entry.status === 'fail' ? '❌' : entry.status === 'skip' ? '⏭️' : 'ℹ️';
+              const mark = entry.status === 'ok' ? icon('check', { size: 13 }) : entry.status === 'fail' ? icon('xmark', { size: 13 }) : entry.status === 'skip' ? icon('close', { size: 13 }) : icon('file', { size: 13 });
               const cls = entry.status === 'fail' ? 'log-fail' : entry.status === 'ok' ? 'log-ok' : 'log-skip';
-              return `<tr class="${cls}"><td>${escHtml(entry.field)}</td><td>${icon}</td><td>${escHtml(entry.detail)}</td></tr>`;
+              return `<tr class="${cls}"><td>${escHtml(entry.field)}</td><td>${mark}</td><td>${escHtml(entry.detail)}</td></tr>`;
             }).join('')}
           </tbody>
         </table>
@@ -1659,7 +1660,7 @@ async function refetchSingleCipher(cipher) {
     const logEntries = [];
     const decryptErrors = [];
     logEntries.push({ field: t('decrypt.refetch.time'), status: 'info', detail: new Date().toLocaleString(getLocale() === 'zh' ? 'zh-CN' : 'en-US') });
-    logEntries.push({ field: '📡 API Request', status: 'ok', detail: t('decrypt.api.ok', cipher.id.substring(0, 8)) });
+    logEntries.push({ field: 'API Request', status: 'ok', detail: t('decrypt.api.ok', cipher.id.substring(0, 8)) });
 
     // Check if raw data actually has encrypted fields
     if (!freshRaw.Name) {
@@ -1753,7 +1754,7 @@ function closeDetailDrawer() {
 
 function detailField(label, value, copyable) {
   return `<div class="detail-field"><div class="detail-label">${label}</div>
-    <div class="detail-value">${escHtml(value)}${copyable ? `<button class="copy-btn" onclick="copyText('${escAttr(value)}', this)">📋</button>` : ''}</div></div>`;
+    <div class="detail-value">${escHtml(value)}${copyable ? `<button class="copy-btn" onclick="copyText('${escAttr(value)}', this)">${icon('copy', { size: 14 })}</button>` : ''}</div></div>`;
 }
 
 // Global functions for inline handlers
@@ -1762,11 +1763,11 @@ window.togglePw = (btn, pw) => {
   if (span.dataset.visible === 'true') {
     span.textContent = '•'.repeat(Math.min(pw.length, 20));
     span.dataset.visible = 'false';
-    btn.textContent = '👁';
+    btn.innerHTML = icon('eye', { size: 14 });
   } else {
     span.textContent = pw;
     span.dataset.visible = 'true';
-    btn.textContent = '🙈';
+    btn.innerHTML = icon('eyeOff', { size: 14 });
   }
 };
 
@@ -1774,8 +1775,8 @@ window.copyText = async (text, btn) => {
   try {
     await navigator.clipboard.writeText(text);
     btn.classList.add('copied');
-    btn.textContent = '✅';
-    setTimeout(() => { btn.classList.remove('copied'); btn.textContent = '📋'; }, 1500);
+    btn.innerHTML = icon('check', { size: 14 });
+    setTimeout(() => { btn.classList.remove('copied'); btn.innerHTML = icon('copy', { size: 14 }); }, 1500);
   } catch { /* ignore */ }
 };
 
@@ -2015,7 +2016,7 @@ function openEditDrawer(cipher) {
   if (passkeys.length > 0) {
     html += `<div class="edit-section">
       <div class="edit-section-title">${t('detail.passkey')}</div>
-      <div class="detail-field"><div class="detail-value"><span class="has-passkey">🔑 ${passkeys.length}${t('detail.passkey.count')} ${t('edit.passkey.readonly')}</span></div></div>
+      <div class="detail-field"><div class="detail-value"><span class="has-passkey">${icon('key', { size: 13 })} ${passkeys.length}${t('detail.passkey.count')} ${t('edit.passkey.readonly')}</span></div></div>
     </div>`;
   }
 
@@ -2750,10 +2751,10 @@ async function decryptAllCiphers(syncData) {
     if (cipherKeyStr) {
       try {
         itemKey = await decryptSymmetricKey(cipherKeyStr, symmetricKey);
-        logEntries.push({ field: '🔑 Cipher Key', status: 'ok', detail: t('decrypt.cipher.key.ok') });
+        logEntries.push({ field: 'Cipher Key', status: 'ok', detail: t('decrypt.cipher.key.ok') });
       } catch (err) {
         console.debug('[Decrypt] Failed to decrypt per-cipher Key:', err.message);
-        logEntries.push({ field: '🔑 Cipher Key', status: 'fail', detail: t('decrypt.cipher.key.fail', err.message) });
+        logEntries.push({ field: 'Cipher Key', status: 'fail', detail: t('decrypt.cipher.key.fail', err.message) });
         // Fall back to master key — may still fail for individual fields
       }
     }
@@ -3137,7 +3138,7 @@ function renderDuplicatesView() {
 
   if (filteredExactGroups.length === 0 && filteredSameGroups.length === 0) {
     container.innerHTML = searchQuery.trim()
-      ? `<div class="empty-state">🔍 ${t('dup.empty')}</div>`
+      ? `<div class="empty-state">${icon('search', { size: 16 })} ${t('dup.empty')}</div>`
       : `<div class="empty-state">${t('dup.empty')}</div>`;
     return;
   }
@@ -3175,7 +3176,7 @@ function renderDuplicatesView() {
             </label>
             <button class="single-merge-btn" data-gi="${globalIdx}">${t('dup.merge.single')}</button>
             ${group.diffFields && group.diffFields.length > 0
-              ? `<div class="diff-tags">${group.diffFields.map(d => `<span class="diff-tag">⚠️ ${escHtml(d)}</span>`).join('')}</div>`
+              ? `<div class="diff-tags">${group.diffFields.map(d => `<span class="diff-tag">${icon('warn', { size: 12 })} ${escHtml(d)}</span>`).join('')}</div>`
               : ''}
           </div>
           <div class="dup-items">
@@ -3199,7 +3200,7 @@ function renderDuplicatesView() {
           <div class="dup-group-header">
             <span class="badge badge-site">${t('dup.samesite.badge')}</span>
             ${group.diffFields && group.diffFields.length > 0
-              ? group.diffFields.map(d => `<span class="diff-tag">⚠️ ${escHtml(d)}</span>`).join('')
+              ? group.diffFields.map(d => `<span class="diff-tag">${icon('warn', { size: 12 })} ${escHtml(d)}</span>`).join('')
               : ''}
             <span class="group-title">${escHtml(group.label)}</span>
             <span class="group-count">${group.items.length} ${t('dup.items')} · ${byUser.length} ${t('dup.accounts')}</span>
@@ -3208,7 +3209,7 @@ function renderDuplicatesView() {
           <div class="dup-items site-items">
             ${byUser.map((userGroup, ui) => `
               ${ui > 0 ? '<div class="username-divider"></div>' : ''}
-              ${userGroup.items.length > 1 ? `<div class="username-section-label">👤 ${escHtml(userGroup.username || '—')} · ${userGroup.items.length} ${t('dup.entries')}</div>` : ''}
+              ${userGroup.items.length > 1 ? `<div class="username-section-label">${icon('user', { size: 12 })} ${escHtml(userGroup.username || '—')} · ${userGroup.items.length} ${t('dup.entries')}</div>` : ''}
               ${userGroup.items.map(item => renderSiteDupItem(item, globalIdx)).join('')}
             `).join('')}
           </div>
@@ -3219,8 +3220,8 @@ function renderDuplicatesView() {
     <div class="merge-bar" id="merge-bar">
       <span id="merge-count"></span>
       <div class="merge-bar-actions">
-        <button id="dup-batch-move-btn" class="merge-bar-btn" title="${t('folder.move')}">📁 ${t('folder.move')}</button>
-        <button id="dup-batch-delete-btn" class="merge-bar-btn merge-bar-btn-danger" title="${t('batch.delete.title')}">🗑️ ${t('detail.btn.delete')}</button>
+        <button id="dup-batch-move-btn" class="merge-bar-btn" title="${t('folder.move')}">${icon('folder', { size: 14 })} ${t('folder.move')}</button>
+        <button id="dup-batch-delete-btn" class="merge-bar-btn merge-bar-btn-danger" title="${t('batch.delete.title')}">${icon('trash', { size: 14 })} ${t('detail.btn.delete')}</button>
         <button id="merge-btn" class="merge-btn">${t('dup.merge.btn')}</button>
       </div>
     </div>
@@ -3287,7 +3288,7 @@ function renderDuplicatesView() {
           healthResult = analyzeHealth(allDecryptedCiphers);
           updateSidebarBadges();
           renderDuplicatesView();
-          showToast(`✅ ${ids.length} ${t('dup.items')} ${t('detail.delete.trash')}`, 'success');
+          showToast(`${ids.length} ${t('dup.items')} ${t('detail.delete.trash')}`, 'success');
 
           // ── Phase 2: 后台服务端删除 ──
           try {
@@ -3383,16 +3384,16 @@ function renderExactDupItem(item, gi, ii, isFirst) {
     <div class="dup-item ${isFirst ? 'keep-item' : 'remove-item'}" data-id="${item.id}">
       <label class="item-radio">
         <input type="radio" name="keep-${gi}" data-gi="${gi}" data-ii="${ii}" ${isFirst ? 'checked' : ''}>
-        <span class="radio-label">${isFirst ? `✅ ${t('dup.keep')}` : `🗑️ ${t('dup.remove')}`}</span>
+        <span class="radio-label">${isFirst ? `${icon('check', { size: 13 })} ${t('dup.keep')}` : `${icon('trash', { size: 13 })} ${t('dup.remove')}`}</span>
       </label>
       <div class="item-details">
         <div class="item-name">${escHtml(item.decrypted?.name || t('item.untitled'))}</div>
         <div class="item-meta">
-          <span>👤 ${escHtml(item.decrypted?.username || '—')}</span>
-          <span>🔗 ${uris.length > 0 ? linkUri(uris[0]) : '—'}</span>
-          ${passkeys > 0 ? `<span class="has-passkey">🔑 ${passkeys} ${t('detail.passkey')}</span>` : ''}
-          ${item.decrypted?.totp ? '<span class="has-totp">🕐 TOTP</span>' : ''}
-          <span>📁 ${escHtml(folderMap[item.raw?.FolderId] || t('item.no.folder'))}</span>
+          <span>${icon('user', { size: 12 })} ${escHtml(item.decrypted?.username || '—')}</span>
+          <span>${icon('link', { size: 12 })} ${uris.length > 0 ? linkUri(uris[0]) : '—'}</span>
+          ${passkeys > 0 ? `<span class="has-passkey">${icon('key', { size: 12 })} ${passkeys} ${t('detail.passkey')}</span>` : ''}
+          ${item.decrypted?.totp ? `<span class="has-totp">${icon('clock', { size: 12 })} TOTP</span>` : ''}
+          <span>${icon('folder', { size: 12 })} ${escHtml(folderMap[item.raw?.FolderId] || t('item.no.folder'))}</span>
         </div>
       </div>
     </div>
@@ -3415,12 +3416,12 @@ function renderSiteDupItem(item, gi) {
       <div class="item-details">
         <div class="item-name">${escHtml(item.decrypted?.name || t('item.untitled'))}</div>
         <div class="item-meta">
-          <span>👤 ${escHtml(item.decrypted?.username || '—')}</span>
-          <span>🔗 ${uris.length > 0 ? linkUri(uris[0]) : '—'}</span>
-          ${passkeys > 0 ? `<span class="has-passkey">🔑 ${passkeys} ${t('detail.passkey')}</span>` : ''}
-          ${item.decrypted?.totp ? '<span class="has-totp">🕐 TOTP</span>' : ''}
-          ${fields > 0 ? `<span class="has-fields">📝 ${fields} ${t('detail.section.fields')}</span>` : ''}
-          <span>📁 ${escHtml(folderMap[item.raw?.FolderId] || t('item.no.folder'))}</span>
+          <span>${icon('user', { size: 12 })} ${escHtml(item.decrypted?.username || '—')}</span>
+          <span>${icon('link', { size: 12 })} ${uris.length > 0 ? linkUri(uris[0]) : '—'}</span>
+          ${passkeys > 0 ? `<span class="has-passkey">${icon('key', { size: 12 })} ${passkeys} ${t('detail.passkey')}</span>` : ''}
+          ${item.decrypted?.totp ? `<span class="has-totp">${icon('clock', { size: 12 })} TOTP</span>` : ''}
+          ${fields > 0 ? `<span class="has-fields">${icon('note', { size: 12 })} ${fields} ${t('detail.section.fields')}</span>` : ''}
+          <span>${icon('folder', { size: 12 })} ${escHtml(folderMap[item.raw?.FolderId] || t('item.no.folder'))}</span>
         </div>
       </div>
     </div>
@@ -3509,9 +3510,9 @@ function renderCorruptedView() {
           <div class="item-name">${escHtml(item.decrypted?.name || t('item.untitled'))}</div>
           <div class="item-meta">
             ${reasonHtml}
-            <span>👤 ${escHtml(item.decrypted?.username || '—')}</span>
-            ${uri ? `<span>🔗 ${linkUri(uri)}</span>` : ''}
-            <span>📁 ${escHtml(folderMap[item.raw?.FolderId] || t('item.no.folder'))}</span>
+            <span>${icon('user', { size: 12 })} ${escHtml(item.decrypted?.username || '—')}</span>
+            ${uri ? `<span>${icon('link', { size: 12 })} ${linkUri(uri)}</span>` : ''}
+            <span>${icon('folder', { size: 12 })} ${escHtml(folderMap[item.raw?.FolderId] || t('item.no.folder'))}</span>
           </div>
         </div>
       </div>`;
@@ -3677,7 +3678,7 @@ function renderDeadUrlsView() {
   if (!deadUrlCheckDone && !_deadUrlCheckRunning) {
     container.innerHTML = `
       <div class="empty-state">
-        <div style="font-size:2.5rem;margin-bottom:16px">🔗</div>
+        <div style="margin-bottom:16px;color:var(--text-muted)">${icon('link', { size: 40 })}</div>
         <div style="font-size:1.05rem;font-weight:600;margin-bottom:8px;color:var(--text-primary)">${t('deadurls.check.title')}</div>
         <div style="font-size:0.82rem;color:var(--text-secondary);margin-bottom:24px;max-width:320px;margin-left:auto;margin-right:auto;line-height:1.6">
           ${t('deadurls.check.desc')}
@@ -3699,7 +3700,7 @@ function renderDeadUrlsView() {
     const pct = deadUrlCheckProgress.total > 0 ? (deadUrlCheckProgress.checked / deadUrlCheckProgress.total * 100).toFixed(0) : 0;
     container.innerHTML = `
       <div class="empty-state">
-        <div style="font-size:2rem;margin-bottom:12px">🔍</div>
+        <div style="margin-bottom:12px;color:var(--text-muted)">${icon('search', { size: 32 })}</div>
         <div>${t('deadurls.running')}</div>
         <div style="width:260px;height:8px;background:var(--bg-secondary);border-radius:4px;margin:16px auto 8px;overflow:hidden">
           <div id="dead-url-progress-fill" style="height:100%;background:linear-gradient(90deg,var(--brand),var(--brand-light));border-radius:4px;transition:width 0.3s ease;width:${pct}%"></div>
@@ -3754,9 +3755,9 @@ function renderDeadUrlsView() {
           <div class="item-name">${escHtml(item.decrypted?.name || t('item.untitled'))}</div>
           <div class="item-meta">
             <span class="orphan-tag" style="color:var(--danger)">${t('deadurls.unreachable')}</span>
-            <span>👤 ${escHtml(item.decrypted?.username || '—')}</span>
-            ${uri ? `<span>🔗 ${linkUri(uri)}</span>` : ''}
-            <span>📁 ${escHtml(folderMap[item.raw?.FolderId] || t('item.no.folder'))}</span>
+            <span>${icon('user', { size: 12 })} ${escHtml(item.decrypted?.username || '—')}</span>
+            ${uri ? `<span>${icon('link', { size: 12 })} ${linkUri(uri)}</span>` : ''}
+            <span>${icon('folder', { size: 12 })} ${escHtml(folderMap[item.raw?.FolderId] || t('item.no.folder'))}</span>
           </div>
         </div>
       </div>`;
@@ -3832,8 +3833,8 @@ function renderTypeFilteredView(viewName, typeId) {
         const user = dec?.username || '';
         const uri = dec?.uris?.filter(Boolean)?.[0] || '';
         const parts = [];
-        if (user) parts.push(`👤 ${escHtml(user)}`);
-        if (uri) parts.push(`🔗 ${linkUri(uri)}`);
+        if (user) parts.push(`${icon('user', { size: 12 })} ${escHtml(user)}`);
+        if (uri) parts.push(`${icon('link', { size: 12 })} ${linkUri(uri)}`);
         return parts.join('  ') || '—';
       }
       case 3: { // Card
@@ -3877,8 +3878,8 @@ function renderTypeFilteredView(viewName, typeId) {
     const folder = escHtml(folderMap[item.raw?.FolderId] || t('item.no.folder'));
     const hasPasskey = typeId === 1 && (item.raw?.Login?.Fido2Credentials?.length || 0) > 0;
     const hasTotp = typeId === 1 && item.decrypted?.totp;
-    const tags = (hasPasskey ? '<span class="mini-tag passkey">🔑</span>' : '') +
-                 (hasTotp ? '<span class="mini-tag totp">🕐</span>' : '');
+    const tags = (hasPasskey ? `<span class="mini-tag passkey">${icon('key', { size: 12 })}</span>` : '') +
+                 (hasTotp ? '<span class="mini-tag totp">' + icon('clock', { size: 12 }) + '</span>' : '');
     return `
     <div class="orphan-item selectable" data-id="${item.id}">
       <input type="checkbox" class="item-cb" data-id="${item.id}" ${checked} />
@@ -3886,7 +3887,7 @@ function renderTypeFilteredView(viewName, typeId) {
         <div class="item-name">${name}</div>
         <div class="item-meta">
           <span>${subtitle}</span>
-          <span>📁 ${folder}</span>
+          <span>${icon('folder', { size: 12 })} ${folder}</span>
         </div>
       </div>
       ${tags ? `<div class="item-tags">${tags}</div>` : ''}
@@ -4011,7 +4012,7 @@ function renderFavoritesView() {
   const allSelected = filtered.length > 0 && filtered.every(c => selectedItems.has(c.id));
 
   // Type icon helper
-  const typeIcon = (type) => ({ 1: '🔐', 2: '📝', 3: '💳', 4: '🪪', 5: '🔑' }[type] || '📄');
+  const typeIcon = (type) => icon(({ 1: 'lock', 2: 'note', 3: 'card', 4: 'identity', 5: 'key' }[type]) || 'file', { size: 14 });
 
   container.innerHTML = `
     <div class="section-header">
@@ -4029,7 +4030,7 @@ function renderFavoritesView() {
       const folder = escHtml(folderMap[item.raw?.FolderId] || t('item.no.folder'));
       const icon = typeIcon(item.type);
       const subtitle = item.type === 1
-        ? (item.decrypted?.username ? `👤 ${escHtml(item.decrypted.username)}` : '—')
+        ? (item.decrypted?.username ? `${icon('user', { size: 12 })} ${escHtml(item.decrypted.username)}` : '—')
         : item.type === 3
         ? (item.decrypted?.card?.brand || typeName(3))
         : item.type === 4
@@ -4046,7 +4047,7 @@ function renderFavoritesView() {
           <div class="item-name">${icon} ${name}</div>
           <div class="item-meta">
             <span>${subtitle}</span>
-            <span>📁 ${folder}</span>
+            <span>${icon('folder', { size: 12 })} ${folder}</span>
           </div>
         </div>
       </div>`;
@@ -4127,8 +4128,8 @@ function renderNoFolderView() {
         <div class="item-info">
           <div class="item-name">${escHtml(item.decrypted?.name || t('item.untitled'))}</div>
           <div class="item-meta">
-            <span>👤 ${escHtml(item.decrypted?.username || '—')}</span>
-            ${uri ? `<span>🔗 ${linkUri(uri)}</span>` : `<span class="orphan-tag">${t('filter.no.url')}</span>`}
+            <span>${icon('user', { size: 12 })} ${escHtml(item.decrypted?.username || '—')}</span>
+            ${uri ? `<span>${icon('link', { size: 12 })} ${linkUri(uri)}</span>` : `<span class="orphan-tag">${t('filter.no.url')}</span>`}
           </div>
         </div>
       </div>`;
@@ -4245,13 +4246,13 @@ function renderHealthView() {
   }
 
   if (filteredIssues.length === 0) {
-    container.innerHTML = `<div class="empty-state">🔍 ${t('health.empty')}</div>`;
+    container.innerHTML = `<div class="empty-state">${icon('search', { size: 16 })} ${t('health.empty')}</div>`;
     return;
   }
 
   container.innerHTML = `
     <div class="section-header">
-      <span class="section-title">🛡️ ${t('health.title')} · ${t('health.score.label')} ${health.score}/100</span>
+      <span class="section-title">${icon('shield', { size: 15 })} ${t('health.title')} · ${t('health.score.label')} ${health.score}/100</span>
     </div>
     ${filteredIssues.map((issue, i) => `
       <div class="health-issue-card" data-index="${i}">
@@ -4313,7 +4314,7 @@ function renderTrashView() {
 
   if (filteredTrash.length === 0) {
     container.innerHTML = searchQuery.trim()
-      ? `<div class="empty-state">🔍 ${t('trash.empty')}</div>`
+      ? `<div class="empty-state">${icon('search', { size: 16 })} ${t('trash.empty')}</div>`
       : `<div class="empty-state">${t('trash.empty')}</div>`;
     return;
   }
@@ -4327,7 +4328,7 @@ function renderTrashView() {
           <input type="checkbox" id="trash-select-all-cb" ${allSelected ? 'checked' : ''} />
           ${t('select.all')}
         </label>
-        🗑️ ${t('trash.title')} · ${filteredTrash.length} ${t('dup.items')}
+        ${icon('trash', { size: 15 })} ${t('trash.title')} · ${filteredTrash.length} ${t('dup.items')}
       </span>
       <span class="section-hint">${t('trash.hint')}</span>
     </div>
@@ -4349,9 +4350,9 @@ function renderTrashView() {
           <div class="item-info">
             <div class="item-name">${escHtml(item.decrypted?.name || t('item.untitled'))}</div>
             <div class="item-meta">
-              <span>👤 ${escHtml(item.decrypted?.username || '—')}</span>
-              ${uri ? `<span>🔗 ${linkUri(uri)}</span>` : `<span class="orphan-tag">${t('health.nourl')}</span>`}
-              ${deletedAt ? `<span class="trash-date">🗓️ ${t('trash.deletedon')} ${deletedAt}</span>` : ''}
+              <span>${icon('user', { size: 12 })} ${escHtml(item.decrypted?.username || '—')}</span>
+              ${uri ? `<span>${icon('link', { size: 12 })} ${linkUri(uri)}</span>` : `<span class="orphan-tag">${t('health.nourl')}</span>`}
+              ${deletedAt ? `<span class="trash-date">${icon('clock', { size: 12 })} ${t('trash.deletedon')} ${deletedAt}</span>` : ''}
             </div>
           </div>
         </div>`;
@@ -4451,11 +4452,11 @@ function showTrashRestoreModal() {
 
   list.innerHTML = `
     <button class="move-folder-option" data-folder-id="__none__">
-      <span>📂</span> <span>${t('trash.restore.none')}</span>
+      <span>${icon('folder', { size: 13 })}</span> <span>${t('trash.restore.none')}</span>
     </button>
     ${folderList.map(f => `
       <button class="move-folder-option" data-folder-id="${f.id}">
-        <span>📁</span> <span>${escHtml(f.name)}</span>
+        <span>${icon('folder', { size: 13 })}</span> <span>${escHtml(f.name)}</span>
       </button>
     `).join('')}
   `;
@@ -4572,7 +4573,7 @@ async function handleMerge(groups) {
       // Safety guard: skip sub-groups where passwords differ (ignore empty = passkey-only)
       const nonEmptyPasswords = new Set(sorted.map(i => i.decrypted?.password || '').filter(p => p !== ''));
       if (nonEmptyPasswords.size > 1) {
-        showToast(`⚠️ ${username || '—'} @ ${group.matchKey}: ${t('merge.same.site.password.diff')}`, 'warning');
+        showToast(`${username || '—'} @ ${group.matchKey}: ${t('merge.same.site.password.diff')}`, 'warning');
         continue;
       }
 
@@ -4596,7 +4597,7 @@ async function handleMerge(groups) {
           decryptedPkIds.push(ids.sort().join('|'));
         }
         if (new Set(decryptedPkIds).size > 1) {
-          showToast(`🔑 ${username || '—'} @ ${group.matchKey}: ${t('merge.same.site.passkey.diff')}`, 'warning');
+          showToast(`${username || '—'} @ ${group.matchKey}: ${t('merge.same.site.passkey.diff')}`, 'warning');
           continue;
         }
       }
@@ -4614,7 +4615,7 @@ async function handleMerge(groups) {
 
   // Notify if same-site items were selected but couldn't be grouped for merge
   if (siteCheckedMap.size > 0 && siteMergeGroups.length === 0) {
-    showToast(`⛔ ${t('merge.same.site.username.diff')}`, 'warning');
+    showToast(`${t('merge.same.site.username.diff')}`, 'warning');
   }
 
   const allGroups = [...exactSelectedGroups, ...siteMergeGroups];
@@ -5001,7 +5002,7 @@ async function handleSingleMerge(groups, gi, btnEl) {
     // Same username but different passwords → warn and block (ignore empty = passkey-only)
     const nonEmptyPasswords = new Set(mergeItems.map(i => i.decrypted?.password || '').filter(p => p !== ''));
     if (nonEmptyPasswords.size > 1) {
-      showToast(`⚠️ ${t('merge.same.site.password.diff')}`, 'warning');
+      showToast(`${t('merge.same.site.password.diff')}`, 'warning');
       return;
     }
   }
@@ -5026,7 +5027,7 @@ async function handleSingleMerge(groups, gi, btnEl) {
       decryptedPasskeyIds.push(ids.sort().join('|'));
     }
     if (new Set(decryptedPasskeyIds).size > 1) {
-      showToast(`🔑 ${t('merge.same.site.passkey.diff')}`, 'warning');
+      showToast(`${t('merge.same.site.passkey.diff')}`, 'warning');
       return;
     }
   }
@@ -5068,7 +5069,7 @@ async function handleSingleMerge(groups, gi, btnEl) {
 
     if (operations.errors && operations.errors.length > 0) {
       operations.errors.forEach(e => {
-        showToast(`⚠️ ${e.groupLabel}: ${e.reason}`, 'warning');
+        showToast(`${e.groupLabel}: ${e.reason}`, 'warning');
       });
     }
 
@@ -5088,7 +5089,7 @@ async function handleSingleMerge(groups, gi, btnEl) {
       } catch (err) {
         console.error('[SingleMerge] createCipher failed:', err);
         createSuccess = false;
-        showToast(`❌ ${op.isPasskeyMerge ? `${t('merge.passkey.label')} ` : ''}${t('merge.create.fail')}: ${err.message}`, 'error');
+        showToast(`${op.isPasskeyMerge ? `${t('merge.passkey.label')} ` : ''}${t('merge.create.fail')}: ${err.message}`, 'error');
       }
     }
 
@@ -5116,9 +5117,9 @@ async function handleSingleMerge(groups, gi, btnEl) {
     switchView(currentView);
 
     if (createSuccess) {
-      showToast(`✅ ${escHtml(group.label)} ${t('merge.ok')}`, 'success');
+      showToast(`${escHtml(group.label)} ${t('merge.ok')}`, 'success');
     } else {
-      showToast(`⚠️ ${escHtml(group.label)} ${t('merge.fail')}`, 'warning');
+      showToast(`${escHtml(group.label)} ${t('merge.fail')}`, 'warning');
     }
 
     // Background resync for real mode consistency

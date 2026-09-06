@@ -104,15 +104,15 @@
           </div>
 
           <div class="auth-mode-toggle">
-            <button type="button" class="auth-tab active" data-mode="apikey" data-i18n="login.tab.apikey">🔑 API Key（推荐）</button>
-            <button type="button" class="auth-tab" data-mode="password" data-i18n="login.tab.password">🔐 密码登录</button>
-            <button type="button" class="auth-tab" data-mode="credfile" data-i18n="login.tab.credfile">📁 加密文件</button>
+            <button type="button" class="auth-tab active" data-mode="apikey" data-i18n="login.tab.apikey">API Key（推荐）</button>
+            <button type="button" class="auth-tab" data-mode="password" data-i18n="login.tab.password">密码登录</button>
+            <button type="button" class="auth-tab" data-mode="credfile" data-i18n="login.tab.credfile">加密文件</button>
           </div>
 
           <!-- API Key Mode -->
           <div id="auth-apikey" class="auth-panel active">
             <div class="auth-info">
-              <p data-i18n="login.apikey.info" data-i18n-html>💡 在 <a href="https://vault.bitwarden.com" target="_blank" rel="noopener">Bitwarden 网页版</a> → <strong>设置</strong> → <strong>安全</strong> → <strong>密钥</strong> → 查看 API 密钥</p>
+              <p data-i18n="login.apikey.info" data-i18n-html>在 <a href="https://vault.bitwarden.com" target="_blank" rel="noopener">Bitwarden 网页版</a> → <strong>设置</strong> → <strong>安全</strong> → <strong>密钥</strong> → 查看 API 密钥</p>
             </div>
             <div class="form-group">
               <label for="client-id">client_id</label>
@@ -135,7 +135,7 @@
           <!-- Password Login Mode -->
           <div id="auth-password" class="auth-panel">
             <div class="auth-info">
-              <p data-i18n="login.password.info" data-i18n-html>🔐 使用 Bitwarden 官方密码登录。主密码仅在本地用于密钥派生，不会发送到服务器。</p>
+              <p data-i18n="login.password.info" data-i18n-html>使用 Bitwarden 官方密码登录。主密码仅在本地用于密钥派生，不会发送到服务器。</p>
             </div>
             <div class="form-group">
               <label for="password-email" data-i18n="login.email.label">邮箱</label>
@@ -146,20 +146,20 @@
               <input type="password" id="password-master" data-i18n="login.password.placeholder" placeholder="你的主密码" autocomplete="current-password" />
             </div>
             <div class="auth-info">
-              <p data-i18n="login.password.warning" data-i18n-html>⚠️ 此方式可能触发 CAPTCHA 验证，建议使用 API Key 登录。</p>
+              <p data-i18n="login.password.warning" data-i18n-html>此方式可能触发 CAPTCHA 验证，建议使用 API Key 登录。</p>
             </div>
           </div>
 
           <!-- Encrypted File Mode -->
           <div id="auth-credfile" class="auth-panel">
             <div class="auth-info">
-              <p data-i18n="login.credfile.info" data-i18n-html>🔐 使用加密凭证文件一键登录。登录后可在侧边栏「加密登录」生成文件。</p>
+              <p data-i18n="login.credfile.info" data-i18n-html>使用加密凭证文件一键登录。登录后可在侧边栏「加密登录」生成文件。</p>
             </div>
             <div id="cred-drop-zone" class="cred-drop-zone">
-              <div class="drop-icon">📁</div>
+              <div class="drop-icon" data-icon="folder" data-icon-size="28"></div>
               <div class="drop-text" data-i18n="login.credfile.drop">将加密凭证文件拖拽到此处</div>
               <div class="drop-or" data-i18n="login.credfile.or">或</div>
-              <button type="button" class="drop-browse-btn" id="cred-browse-btn" data-i18n="login.credfile.browse">📂 选择文件</button>
+              <button type="button" class="drop-browse-btn" id="cred-browse-btn" data-i18n="login.credfile.browse">选择文件</button>
               <input type="file" id="cred-file-input" style="display:none" />
             </div>
           </div>
@@ -167,7 +167,7 @@
           <div id="login-status" class="login-status"></div>
 
           <button type="submit" id="login-btn" class="btn-primary" data-i18n="login.btn">登录并分析</button>
-          <button type="button" id="demo-btn" class="btn-demo" data-i18n="login.demo">🎮 点击进入演示页面</button>
+          <button type="button" id="demo-btn" class="btn-demo" data-i18n="login.demo">点击进入演示页面</button>
 
           <div class="security-note">
             <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
@@ -278,7 +278,7 @@
           <section class="sidebar-folder-section" aria-labelledby="sidebar-folder-title">
             <div class="sidebar-divider"></div>
             <div class="sidebar-section-header">
-              <span id="sidebar-folder-title" class="sidebar-section-title" data-i18n="nav.folders">📁 文件夹</span>
+              <span id="sidebar-folder-title" class="sidebar-section-title" data-i18n="nav.folders">文件夹</span>
               <button class="folder-add-btn" id="folder-add-btn" title="新建文件夹" data-i18n-title="nav.folders.add">+</button>
             </div>
             <div id="folder-list" class="folder-list"></div>
