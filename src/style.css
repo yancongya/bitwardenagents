@@ -2904,3 +2904,23 @@ body {
     font-size: 0.55rem;
   }
 }
+
+/* === Icon System (data-icon hydration) === */
+.nav-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  flex-shrink: 0;
+}
+.nav-icon svg { display: block; }
+.quick-action-icon {
+  display: inline-flex;
+  align-items: center;
+  color: var(--brand-light);
+}
+.quick-action-icon svg { display: block; }
+.batch-icon { display: inline-flex; align-items: center; vertical-align: -2px; }
+.batch-icon svg { display: block; }
+.folder-action-btn svg { display: block; }
+.ctrl-icon svg { display: block; }

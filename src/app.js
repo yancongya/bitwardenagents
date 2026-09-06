@@ -14,6 +14,7 @@ import { showMergeProgress, updateMergeProgress, hideMergeProgress, showMergeRep
 import { saveSession, loadSession, clearSession, _u8ToB64, _b64ToU8, SESSION_KEY } from './core/session-storage.js';
 import { encryptCredentials, decryptCredentials } from './credfile/crypto.js';
 import { isDomainWhitelisted } from './data/domain-whitelist.js';
+import { icon, hydrateIcons } from './icons/icons.js';
 
 // --- State ---
 let client = null;
@@ -43,11 +44,11 @@ const $ = (sel) => document.querySelector(sel);
 const $$ = (sel) => document.querySelectorAll(sel);
 
 const TYPE_META = {
-  1: { view: 'type-login', icon: '🔐', key: 'type.login' },
-  2: { view: 'type-note', icon: '📝', key: 'type.note' },
-  3: { view: 'type-card', icon: '💳', key: 'type.card' },
-  4: { view: 'type-identity', icon: '🪪', key: 'type.identity' },
-  5: { view: 'type-sshkey', icon: '🔑', key: 'type.sshkey' },
+  1: { view: 'type-login', icon: 'lock', key: 'type.login' },
+  2: { view: 'type-note', icon: 'note', key: 'type.note' },
+  3: { view: 'type-card', icon: 'card', key: 'type.card' },
+  4: { view: 'type-identity', icon: 'identity', key: 'type.identity' },
+  5: { view: 'type-sshkey', icon: 'key', key: 'type.sshkey' },
 };
 
 const VIEW_TYPE_ID = {
@@ -64,7 +65,7 @@ function typeName(typeId) {
 
 function typeTitle(typeId) {
   const meta = TYPE_META[typeId];
-  return meta ? `${meta.icon} ${typeName(typeId)}` : t('type.item');
+  return meta ? `${icon(meta.icon, { size: 15 })} ${typeName(typeId)}` : t('type.item');
 }
 
 function renderCurrentView() {
@@ -261,6 +262,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   initLocale();
   initTheme();
   updateControlButtons();
+  hydrateIcons();
 
   setupAuthModeTabs();
   setupLoginForm();
@@ -341,11 +343,11 @@ function updateControlButtons() {
   if (el1) el1.textContent = langText;
   if (el2) el2.textContent = langText;
   // Theme icons
-  const themeIcon = theme === 'dark' ? '☀️' : '🌙';
+  const themeIcon = theme === 'dark' ? 'sun' : 'moon';
   const ti1 = $('#theme-icon-login');
   const ti2 = $('#theme-icon-dash');
-  if (ti1) ti1.textContent = themeIcon;
-  if (ti2) ti2.textContent = themeIcon;
+  if (ti1) { ti1.dataset.icon = themeIcon; ti1.innerHTML = icon(themeIcon, { size: 16 }); }
+  if (ti2) { ti2.dataset.icon = themeIcon; ti2.innerHTML = icon(themeIcon, { size: 16 }); }
 }
 
 // ========================
@@ -829,6 +831,7 @@ function switchView(view) {
   // Render the view
   if (VIEW_TYPE_ID[view]) {
     renderTypeFilteredView(view, VIEW_TYPE_ID[view]);
+    hydrateIcons();
     return;
   }
 
@@ -844,6 +847,7 @@ function switchView(view) {
     case 'corrupted': renderCorruptedView(); break;
     case 'dead-urls': renderDeadUrlsView(); break;
   }
+  hydrateIcons();
 }
 
 // ========================
@@ -1075,8 +1079,8 @@ function renderFolderList() {
       <span class="folder-name">${escHtml(f.name)}</span>
       <span class="folder-count">${folderCounts[f.id] || 0}</span>
       <div class="folder-actions">
-        <button class="folder-action-btn rename" data-folder-id="${f.id}" title="${t('folder.rename')}">✏️</button>
-        <button class="folder-action-btn delete" data-folder-id="${f.id}" title="${t('folder.delete')}">🗑️</button>
+        <button class="folder-action-btn rename" data-folder-id="${f.id}" title="${t('folder.rename')}">${icon('edit', { size: 13 })}</button>
+        <button class="folder-action-btn delete" data-folder-id="${f.id}" title="${t('folder.delete')}">${icon('trash', { size: 13 })}</button>
       </div>
     </div>
   `).join('');
@@ -3044,19 +3048,19 @@ function renderOverview() {
     <h3 style="margin-bottom: 12px; font-size: 0.95rem; color: var(--text-secondary)">${t('overview.quick')}</h3>
     <div class="quick-actions">
       <button class="quick-action-btn" onclick="document.querySelector('[data-view=duplicates]').click()">
-        <span class="quick-action-icon">🔀</span> ${t('overview.quick.dedup')}
+        <span class="quick-action-icon">${icon('shuffle', { size: 16 })}</span> ${t('overview.quick.dedup')}
       </button>
       <button class="quick-action-btn" onclick="document.querySelector('[data-view=health]').click()">
-        <span class="quick-action-icon">🛡️</span> ${t('overview.quick.weak')}
+        <span class="quick-action-icon">${icon('shield', { size: 16 })}</span> ${t('overview.quick.weak')}
       </button>
       <button class="quick-action-btn" id="qa-no-url">
-        <span class="quick-action-icon">🔗</span> ${t('overview.quick.nourl')}
+        <span class="quick-action-icon">${icon('link', { size: 16 })}</span> ${t('overview.quick.nourl')}
       </button>
       <button class="quick-action-btn" id="qa-no-name">
-        <span class="quick-action-icon">📝</span> ${t('overview.quick.notitle')}
+        <span class="quick-action-icon">${icon('note', { size: 16 })}</span> ${t('overview.quick.notitle')}
       </button>
       <button class="quick-action-btn" id="qa-no-folder">
-        <span class="quick-action-icon">📂</span> ${t('overview.quick.nofolder')}
+        <span class="quick-action-icon">${icon('folder', { size: 16 })}</span> ${t('overview.quick.nofolder')}
       </button>
     </div>
   `;

@@ -203,39 +203,39 @@
         <nav class="sidebar-nav">
           <div class="sidebar-main-nav">
             <button class="nav-item active" data-view="overview">
-              <span class="nav-icon">📊</span>
+              <span class="nav-icon" data-icon="chart"></span>
               <span class="nav-label" data-i18n="nav.overview">总览</span>
             </button>
 
             <!-- ── 五大类型分栏 ── -->
             <div class="sidebar-divider"></div>
             <button class="nav-item" data-view="favorites">
-              <span class="nav-icon">⭐</span>
+              <span class="nav-icon" data-icon="star"></span>
               <span class="nav-label" data-i18n="nav.favorites">收藏夹</span>
               <span class="nav-badge" id="badge-favorites"></span>
             </button>
             <button class="nav-item" data-view="type-login">
-              <span class="nav-icon">🔐</span>
+              <span class="nav-icon" data-icon="lock"></span>
               <span class="nav-label" data-i18n="nav.type.login">登录</span>
               <span class="nav-badge" id="badge-type-login"></span>
             </button>
             <button class="nav-item" data-view="type-card">
-              <span class="nav-icon">💳</span>
+              <span class="nav-icon" data-icon="card"></span>
               <span class="nav-label" data-i18n="nav.type.card">支付卡</span>
               <span class="nav-badge" id="badge-type-card"></span>
             </button>
             <button class="nav-item" data-view="type-identity">
-              <span class="nav-icon">🪪</span>
+              <span class="nav-icon" data-icon="identity"></span>
               <span class="nav-label" data-i18n="nav.type.identity">身份</span>
               <span class="nav-badge" id="badge-type-identity"></span>
             </button>
             <button class="nav-item" data-view="type-note">
-              <span class="nav-icon">📝</span>
+              <span class="nav-icon" data-icon="note"></span>
               <span class="nav-label" data-i18n="nav.type.note">安全笔记</span>
               <span class="nav-badge" id="badge-type-note"></span>
             </button>
             <button class="nav-item" data-view="type-sshkey">
-              <span class="nav-icon">🔑</span>
+              <span class="nav-icon" data-icon="key"></span>
               <span class="nav-label" data-i18n="nav.type.sshkey">SSH 密钥</span>
               <span class="nav-badge" id="badge-type-sshkey"></span>
             </button>
@@ -243,32 +243,32 @@
             <!-- ── 横切视图 ── -->
             <div class="sidebar-divider"></div>
             <button class="nav-item" data-view="duplicates">
-              <span class="nav-icon">🔀</span>
+              <span class="nav-icon" data-icon="shuffle"></span>
               <span class="nav-label" data-i18n="nav.duplicates">重复项</span>
               <span class="nav-badge warn" id="badge-dup"></span>
             </button>
             <button class="nav-item" data-view="nofolder">
-              <span class="nav-icon">📂</span>
+              <span class="nav-icon" data-icon="folder"></span>
               <span class="nav-label" data-i18n="nav.nofolder">无文件夹</span>
               <span class="nav-badge" id="badge-nofolder"></span>
             </button>
             <button class="nav-item" data-view="health">
-              <span class="nav-icon">🛡️</span>
+              <span class="nav-icon" data-icon="shield"></span>
               <span class="nav-label" data-i18n="nav.health">健康分析</span>
               <span class="nav-badge" id="badge-health"></span>
             </button>
             <button class="nav-item" data-view="trash">
-              <span class="nav-icon">🗑️</span>
+              <span class="nav-icon" data-icon="trash"></span>
               <span class="nav-label" data-i18n="nav.trash">回收站</span>
               <span class="nav-badge" id="badge-trash"></span>
             </button>
             <button class="nav-item" data-view="corrupted">
-              <span class="nav-icon">💀</span>
+              <span class="nav-icon" data-icon="broken"></span>
               <span class="nav-label" data-i18n="nav.corrupted">已损坏</span>
               <span class="nav-badge danger" id="badge-corrupted"></span>
             </button>
             <button class="nav-item" data-view="dead-urls">
-              <span class="nav-icon">🔗</span>
+              <span class="nav-icon" data-icon="link"></span>
               <span class="nav-label" data-i18n="nav.deadurls">URL已失效</span>
               <span class="nav-badge" id="badge-dead-urls"></span>
             </button>
@@ -287,11 +287,11 @@
 
         <div class="sidebar-footer">
           <button class="nav-item" data-view="credfile">
-            <span class="nav-icon">🔐</span>
+            <span class="nav-icon" data-icon="lock"></span>
             <span class="nav-label" data-i18n="nav.credfile">加密登录</span>
           </button>
           <button class="nav-item" id="logout-btn">
-            <span class="nav-icon">🚪</span>
+            <span class="nav-icon" data-icon="logout"></span>
             <span class="nav-label" data-i18n="nav.logout">退出</span>
           </button>
         </div>
@@ -364,9 +364,9 @@
     <div id="batch-bar" class="batch-bar" style="display:none">
       <span id="batch-count"></span>
       <div class="batch-actions">
-        <button class="batch-btn move" id="batch-move-btn" data-i18n="batch.move">📁 移动到文件夹</button>
-        <button class="batch-btn danger" id="batch-delete-btn" data-i18n="batch.delete">🗑️ 删除</button>
-        <button class="batch-btn" id="batch-cancel-btn" data-i18n="batch.cancel">✕ 取消</button>
+        <button class="batch-btn move" id="batch-move-btn"><span class="batch-icon" data-icon="folder" data-icon-size="15"></span> <span data-i18n="batch.move">移动到文件夹</span></button>
+        <button class="batch-btn danger" id="batch-delete-btn"><span class="batch-icon" data-icon="trash" data-icon-size="15"></span> <span data-i18n="batch.delete">删除</span></button>
+        <button class="batch-btn" id="batch-cancel-btn">✕ <span data-i18n="batch.cancel">取消</span></button>
       </div>
     </div>
 
