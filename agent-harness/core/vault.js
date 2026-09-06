@@ -13,6 +13,33 @@
  */
 
 import { createClient, decryptSymmetricKey, decryptToString } from './bridge.js';
+import fs from 'node:fs';
+import path from 'node:path';
+import crypto from 'node:crypto';
+
+const CACHE_DIR = process.env.BWVAULT_CACHE || '/tmp/bwvault-cache';
+const CACHE_FILE = path.join(CACHE_DIR, 'vault.json');
+
+function loadCache() {
+  try {
+    if (!fs.existsSync(CACHE_FILE)) return null;
+    return JSON.parse(fs.readFileSync(CACHE_FILE, 'utf8'));
+  } catch { return null; }
+}
+
+function saveCache(data) {
+  try {
+    fs.mkdirSync(CACHE_DIR, { recursive: true, mode: 0o700 });
+    // Strip _original (large raw API objects) from cache
+    const light = {
+      ...data,
+      savedAt: Date.now(),
+      ciphers: data.ciphers.map(c => { const { _original, ...rest } = c; return rest; }),
+      raw: undefined,
+    };
+    fs.writeFileSync(CACHE_FILE, JSON.stringify(light), { mode: 0o600 });
+  } catch { /* best-effort */ }
+}
 
 const TYPE_META = {
   1: { name: 'login', icon: '🔐' },
@@ -38,6 +65,8 @@ export function clientFromSession(session) {
 
 /**
  * Pull the full vault and decrypt every cipher + folder.
+ * Caches decrypted results to /data/cache/vault.json keyed by revision hash.
+ * Subsequent calls with the same revision return instantly from disk.
  *
  * @param {object} session from session.loadSession()
  * @param {(done:number,total:number)=>void} [onProgress]
@@ -45,8 +74,42 @@ export function clientFromSession(session) {
  */
 export async function syncVault(session, onProgress) {
   const { client, symmetricKey } = clientFromSession(session);
-  const raw = await client.sync();
 
+  // Check local cache first — if valid (< 10 min old), skip API call entirely.
+  const cached = loadCache();
+  const CACHE_MAX_AGE = 10 * 60 * 1000; // 10 minutes
+  if (cached && cached.savedAt && (Date.now() - cached.savedAt) < CACHE_MAX_AGE) {
+    if (onProgress) onProgress(cached.ciphers.length, cached.ciphers.length);
+    return cached;
+  }
+
+  // Cache expired or missing — fetch from server.
+  let raw;
+  try {
+    raw = await client.sync();
+  } catch (e) {
+    // If sync fails but we have a cache, use it
+    const cached = loadCache();
+    if (cached) {
+      if (onProgress) onProgress(cached.ciphers.length, cached.ciphers.length);
+      return cached;
+    }
+    throw e;
+  }
+
+  // Check if vault actually changed (compare revision hash)
+  const revisionHash = crypto
+    .createHash('sha256')
+    .update(JSON.stringify(raw.Profile?.RevisionDate || '') + (raw.Ciphers || []).length)
+    .digest('hex');
+
+  const cached = loadCache();
+  if (cached && cached.revisionHash === revisionHash) {
+    if (onProgress) onProgress(cached.ciphers.length, cached.ciphers.length);
+    return cached;
+  }
+
+  // Full decrypt
   const folderMap = {};
   for (const f of raw.Folders || []) {
     try {
@@ -66,8 +129,12 @@ export async function syncVault(session, onProgress) {
   }
 
   const folders = Object.entries(folderMap).map(([id, name]) => ({ id, name }));
+  const result = { ciphers, folders, raw, revisionHash };
 
-  return { ciphers, folders, raw };
+  // Save cache (best-effort)
+  saveCache(result);
+
+  return result;
 }
 
 /**
