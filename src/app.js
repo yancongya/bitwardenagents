@@ -8,6 +8,12 @@ import { t, getLocale, setLocale, initLocale } from './i18n.js';
 import { getTheme, setTheme, toggleTheme, initTheme } from './theme.js';
 import { saveAs } from 'file-saver';
 import './style.css';
+import { escHtml, linkUri, escAttr } from './utils/html.js';
+import { showToast, showConfirm, closeModal } from './ui/toast-modal.js';
+import { showMergeProgress, updateMergeProgress, hideMergeProgress, showMergeReport } from './ui/merge-overlay.js';
+import { saveSession, loadSession, clearSession, _u8ToB64, _b64ToU8, SESSION_KEY } from './core/session-storage.js';
+import { encryptCredentials, decryptCredentials } from './credfile/crypto.js';
+import { isDomainWhitelisted } from './data/domain-whitelist.js';
 
 // --- State ---
 let client = null;
@@ -66,65 +72,9 @@ function renderCurrentView() {
 }
 
 // ========================
-// SESSION PERSISTENCE
+// SESSION PERSISTENCE — primitives moved to core/session-storage.js
 // ========================
-const SESSION_KEY = 'bw_session';
-
-function _u8ToB64(u8) {
-  return btoa(String.fromCharCode(...u8));
-}
-function _b64ToU8(b64) {
-  const bin = atob(b64);
-  return new Uint8Array([...bin].map(c => c.charCodeAt(0)));
-}
-
-function saveSession(serverUrl, accessToken, symKey) {
-  try {
-    const payload = {
-      serverUrl,
-      accessToken,
-      encKey: _u8ToB64(symKey.encKey),
-      macKey: _u8ToB64(symKey.macKey),
-      deviceIdentifier: client?.deviceIdentifier || null,
-      savedAt: Date.now(),
-    };
-    // Persist to both browser storage and server (for CLI/Docker sharing)
-    sessionStorage.setItem(SESSION_KEY, JSON.stringify(payload));
-    localStorage.setItem(SESSION_KEY, JSON.stringify(payload));
-    fetch('/api/session', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
-    }).catch(() => {}); // best-effort, don't block
-  } catch (e) {
-    console.warn('[Session] Failed to save:', e);
-  }
-}
-
-function loadSession() {
-  try {
-    const raw = sessionStorage.getItem(SESSION_KEY) || localStorage.getItem(SESSION_KEY);
-    if (!raw) return null;
-    const data = JSON.parse(raw);
-    return {
-      serverUrl: data.serverUrl || '',
-      accessToken: data.accessToken,
-      encKey: _b64ToU8(data.encKey),
-      macKey: _b64ToU8(data.macKey),
-      deviceIdentifier: data.deviceIdentifier || null,
-    };
-  } catch {
-    return null;
-  }
-}
-
-function clearSession() {
-  // Only clear browser-side storage. Never delete the server-side session —
-  // that's the single source of truth for Docker/CLI sharing. Server session
-  // is only cleared by explicit CLI "auth logout".
-  sessionStorage.removeItem(SESSION_KEY);
-  localStorage.removeItem(SESSION_KEY);
-}
+// (restore orchestration stays here — deeply coupled to app state)
 
 async function tryRestoreSession() {
   // Try local first
@@ -477,7 +427,7 @@ async function handleApiKeyLogin() {
     }
 
     // Save session for persistence
-    saveSession(serverUrl, client.accessToken, symmetricKey);
+    saveSession(serverUrl, client.accessToken, symmetricKey, client?.deviceIdentifier || null);
 
     enterDashboard();
   } catch (err) {
@@ -545,7 +495,7 @@ async function handlePasswordLogin() {
     }
 
     // Save session for persistence
-    saveSession(serverUrl, client.accessToken, symmetricKey);
+    saveSession(serverUrl, client.accessToken, symmetricKey, client?.deviceIdentifier || null);
 
     enterDashboard();
   } catch (err) {
@@ -690,7 +640,7 @@ function showDeviceVerificationModal(email, password, serverUrl) {
       }
 
       // Save session for persistence
-      saveSession(serverUrl, client.accessToken, symmetricKey);
+      saveSession(serverUrl, client.accessToken, symmetricKey, client?.deviceIdentifier || null);
 
       closeModal();
       enterDashboard();
@@ -2721,105 +2671,17 @@ async function deleteCurrentCipher(cipher) {
   );
 }
 
-let modalResolve = null;
-
-function showConfirm(title, message, onConfirm) {
-  const modal = $('#confirm-modal');
-  $('#modal-title').textContent = title;
-  $('#modal-message').textContent = message;
-  modal.style.display = 'flex';
-
-  const confirmBtn = $('#modal-confirm');
-  const cancelBtn = $('#modal-cancel');
-
-  const cleanup = () => { modal.style.display = 'none'; };
-
-  confirmBtn.onclick = () => { cleanup(); onConfirm(); };
-  cancelBtn.onclick = cleanup;
-}
-
-function closeModal() {
-  $('#confirm-modal').style.display = 'none';
-}
+// ========================
+// CONFIRM MODAL — moved to ui/toast-modal.js
+// ========================
 
 // ========================
-// TOAST
+// TOAST — moved to ui/toast-modal.js
 // ========================
-function showToast(message, type = 'info') {
-  const container = $('#toast-container');
-  const toast = document.createElement('div');
-  toast.className = `toast ${type}`;
-  toast.textContent = message;
-  container.appendChild(toast);
-  setTimeout(() => toast.remove(), 4000);
-}
 
 // ========================
-// MERGE PROGRESS & REPORT
+// MERGE PROGRESS & REPORT — moved to ui/merge-overlay.js
 // ========================
-function showMergeProgress() {
-  const overlay = $('#merge-progress-overlay');
-  const bar = $('#merge-progress-bar');
-  const text = $('#merge-progress-text');
-  bar.style.width = '0%';
-  text.textContent = t('merge.progress.ready');
-  overlay.style.display = 'flex';
-}
-
-function updateMergeProgress(pct, label) {
-  const bar = $('#merge-progress-bar');
-  const text = $('#merge-progress-text');
-  bar.style.width = `${Math.min(pct, 100)}%`;
-  text.textContent = `${pct}% — ${label}`;
-}
-
-function hideMergeProgress() {
-  const overlay = $('#merge-progress-overlay');
-  setTimeout(() => { overlay.style.display = 'none'; }, 300);
-}
-
-function showMergeReport(successGroups, successDeletes, failures) {
-  const modal = $('#merge-report-modal');
-  const title = $('#merge-report-title');
-  const body = $('#merge-report-body');
-  const closeBtn = $('#merge-report-close');
-
-  const hasFails = failures.length > 0;
-  title.textContent = hasFails ? t('merge.report.partial') : t('merge.report.all.ok');
-
-  let html = '<div class="report-summary">';
-  html += `<div><span class="success">${t('merge.report.success')}</span> ${successGroups} ${t('dup.groups')}`;
-  if (successDeletes > 0) html += t('merge.report.deleted', successDeletes);
-  html += '</div>';
-  if (hasFails) {
-    html += `<div><span class="fail">${t('merge.report.failed')}</span> ${failures.length} ${t('dup.items')}</div>`;
-  }
-  html += '</div>';
-
-  if (hasFails) {
-    html += '<ul class="report-fail-list">';
-    for (const f of failures) {
-      html += `<li>
-        <span class="fail-icon">❌</span>
-        <div class="fail-detail">
-          <div class="fail-label">${escapeHtml(f.label)}</div>
-          <div class="fail-reason">${escapeHtml(f.reason)}</div>
-        </div>
-      </li>`;
-    }
-    html += '</ul>';
-  }
-
-  body.innerHTML = html;
-  modal.style.display = 'flex';
-  closeBtn.onclick = () => { modal.style.display = 'none'; };
-}
-
-function escapeHtml(str) {
-  const div = document.createElement('div');
-  div.textContent = str;
-  return div.innerHTML;
-}
 
 // ========================
 // DECRYPT VAULT
@@ -3686,116 +3548,7 @@ function renderCorruptedView() {
 // URL LIVENESS CHECK
 // ========================
 
-/** Major domain whitelist — always considered alive, skip checking */
-const ALIVE_DOMAIN_WHITELIST = new Set([
-  // Google
-  'google.com','mail.google.com','accounts.google.com','drive.google.com','docs.google.com',
-  'sheets.google.com','slides.google.com','photos.google.com','calendar.google.com',
-  'contacts.google.com','maps.google.com','meet.google.com','chat.google.com',
-  'play.google.com','cloud.google.com','firebase.google.com','analytics.google.com',
-  'adsense.google.com','adwords.google.com','search.google.com','translate.google.com',
-  'news.google.com','store.google.com','one.google.com','myaccount.google.com',
-  // YouTube
-  'youtube.com','www.youtube.com','studio.youtube.com','music.youtube.com',
-  // Apple
-  'apple.com','www.apple.com','icloud.com','www.icloud.com','appleid.apple.com',
-  'iforgot.apple.com','account.apple.com','support.apple.com','developer.apple.com',
-  'store.apple.com','music.apple.com','tv.apple.com','books.apple.com',
-  // Microsoft
-  'microsoft.com','www.microsoft.com','login.microsoftonline.com','outlook.live.com',
-  'outlook.com','live.com','office.com','onedrive.live.com','teams.microsoft.com',
-  'azure.microsoft.com','portal.azure.com','github.com','www.github.com',
-  'linkedin.com','www.linkedin.com',
-  // Amazon
-  'amazon.com','www.amazon.com','amazon.co.jp','amazon.co.uk','amazon.de',
-  'amazon.fr','amazon.es','amazon.it','amazon.ca','amazon.com.au',
-  'amazon.in','amazon.com.br','amazon.sg','aws.amazon.com','console.aws.amazon.com',
-  'signin.aws.amazon.com','prime.amazon.com',
-  // Meta / Facebook
-  'facebook.com','www.facebook.com','m.facebook.com','messenger.com',
-  'instagram.com','www.instagram.com','whatsapp.com','web.whatsapp.com',
-  'threads.net','www.threads.net','meta.com','about.meta.com',
-  // Twitter / X
-  'twitter.com','www.twitter.com','x.com','www.x.com',
-  // Netflix / Disney / Streaming
-  'netflix.com','www.netflix.com','disneyplus.com','www.disneyplus.com',
-  'hulu.com','www.hulu.com','hbomax.com','max.com','peacocktv.com',
-  'paramountplus.com','crunchyroll.com','spotify.com','open.spotify.com',
-  'account.spotify.com','soundcloud.com','www.soundcloud.com',
-  'twitch.tv','www.twitch.tv','bilibili.com','www.bilibili.com',
-  // Adobe
-  'adobe.com','www.adobe.com','account.adobe.com','creativecloud.adobe.com',
-  'behance.net','www.behance.net',
-  // Payment / Finance
-  'paypal.com','www.paypal.com','stripe.com','dashboard.stripe.com',
-  'wise.com','revolut.com','coinbase.com','binance.com','www.binance.com',
-  'kraken.com','blockchain.com',
-  // Cloud / DevOps
-  'netlify.com','app.netlify.com','heroku.com','dashboard.heroku.com',
-  'digitalocean.com','cloud.digitalocean.com','linode.com','vultr.com',
-  'cloudflare.com','dash.cloudflare.com','workers.dev',
-  'supabase.com','app.supabase.com','railway.app','render.com','fly.io',
-  // Dev tools
-  'stackoverflow.com','gitlab.com','bitbucket.org','npmjs.com','www.npmjs.com',
-  'pypi.org','hub.docker.com','figma.com','www.figma.com','notion.so','www.notion.so',
-  'slack.com','app.slack.com','discord.com','discord.gg','trello.com',
-  'atlassian.com','jira.atlassian.com','confluence.atlassian.com',
-  'codepen.io','replit.com','codesandbox.io',
-  // China majors
-  'baidu.com','www.baidu.com','pan.baidu.com','tieba.baidu.com',
-  'taobao.com','www.taobao.com','tmall.com','www.tmall.com',
-  'alipay.com','www.alipay.com','aliexpress.com','login.aliexpress.com',
-  'jd.com','www.jd.com','pinduoduo.com','meituan.com',
-  'weibo.com','www.weibo.com','weixin.qq.com','wx.qq.com',
-  'qq.com','mail.qq.com','im.qq.com','cloud.tencent.com',
-  'douyin.com','www.douyin.com','tiktok.com','www.tiktok.com',
-  'zhihu.com','www.zhihu.com','douban.com','www.douban.com',
-  'xiaohongshu.com','www.xiaohongshu.com',
-  '163.com','mail.163.com','126.com','mail.126.com',
-  'sohu.com','www.sohu.com','sina.com','www.sina.com',
-  'ctrip.com','www.ctrip.com','booking.com','www.booking.com',
-  'dianping.com','www.dianping.com',
-  // E-commerce / Shopping
-  'ebay.com','www.ebay.com','etsy.com','www.etsy.com',
-  'shopify.com','walmart.com','www.walmart.com','target.com','www.target.com',
-  'bestbuy.com','www.bestbuy.com','costco.com','www.costco.com',
-  'ikea.com','www.ikea.com','wish.com','www.wish.com',
-  // Social / Community
-  'reddit.com','www.reddit.com','old.reddit.com','tumblr.com','www.tumblr.com',
-  'pinterest.com','www.pinterest.com','quora.com','www.quora.com',
-  'medium.com','dev.to','hackernews.com','news.ycombinator.com',
-  'telegram.org','web.telegram.org','signal.org',
-  // Email
-  'protonmail.com','mail.proton.me','zoho.com','mail.zoho.com',
-  'tutanota.com','fastmail.com',
-  // Education / Reference
-  'wikipedia.org','en.wikipedia.org','zh.wikipedia.org',
-  'coursera.org','www.coursera.org','udemy.com','www.udemy.com',
-  'edx.org','www.edx.org','khanacademy.org',
-  // VPS / Hosting
-  'dmit.io','bandwagonhost.com','hostinger.com','namecheap.com',
-  'godaddy.com','bluehost.com','siteground.com','ovh.com','hetzner.com',
-  // Gaming
-  'steam.com','store.steampowered.com','steampowered.com',
-  'epicgames.com','www.epicgames.com','blizzard.com','battle.net',
-  'playstation.com','xbox.com','nintendo.com',
-  // Other major
-  'dropbox.com','www.dropbox.com','box.com','app.box.com',
-  'zoom.us','evernote.com','1password.com','bitwarden.com',
-  'lastpass.com','dashlane.com','nordvpn.com','expressvpn.com',
-  'canva.com','www.canva.com','grammarly.com','openai.com','chat.openai.com',
-  'anthropic.com','claude.ai','deepseek.com',
-]);
-
-/** Check if a domain or any of its parent domains is in the whitelist */
-function isDomainWhitelisted(domain) {
-  if (ALIVE_DOMAIN_WHITELIST.has(domain)) return true;
-  const parts = domain.split('.');
-  for (let i = 1; i < parts.length - 1; i++) {
-    if (ALIVE_DOMAIN_WHITELIST.has(parts.slice(i).join('.'))) return true;
-  }
-  return false;
-}
+// URL LIVENESS CHECK — whitelist & domain logic moved to data/domain-whitelist.js
 
 /**
  * ONE-SHOT URL liveness check.
@@ -5380,89 +5133,12 @@ async function handleSingleMerge(groups, gi, btnEl) {
 }
 
 // ========================
-// UTILS
+// UTILS — moved to utils/html.js
 // ========================
-function escHtml(str) {
-  if (!str) return '';
-  const div = document.createElement('div');
-  div.textContent = str;
-  return div.innerHTML;
-}
-
-/**
- * Wrap a URI string as a clickable link (opens in new tab).
- * Non-web URIs (androidapp://, iosapp://) are displayed as plain text.
- */
-function linkUri(uri) {
-  if (!uri) return '';
-  const escaped = escHtml(uri);
-  // Only linkify http/https URLs
-  if (/^https?:\/\//i.test(uri)) {
-    return `<a href="${escAttr(uri)}" target="_blank" rel="noopener noreferrer" class="uri-link" onclick="event.stopPropagation()">${escaped}</a>`;
-  }
-  return escaped;
-}
-
-function escAttr(str) {
-  if (!str) return '';
-  return str.replace(/'/g, "\\'").replace(/"/g, '&quot;');
-}
 
 // ========================
-// CREDENTIAL FILE SYSTEM
+// CREDENTIAL FILE SYSTEM — crypto moved to credfile/crypto.js
 // ========================
-const CRED_APP_SALT = 'BW-VaultManager-CredFile-v1';
-
-async function deriveCredFileKey() {
-  const enc = new TextEncoder();
-  const keyMaterial = await crypto.subtle.importKey('raw', enc.encode(CRED_APP_SALT), 'PBKDF2', false, ['deriveKey']);
-  return crypto.subtle.deriveKey(
-    { name: 'PBKDF2', salt: enc.encode('bw-credfile-salt-2026'), iterations: 100000, hash: 'SHA-256' },
-    keyMaterial,
-    { name: 'AES-GCM', length: 256 },
-    false,
-    ['encrypt', 'decrypt']
-  );
-}
-
-async function encryptCredentials(data) {
-  const key = await deriveCredFileKey();
-  const iv = crypto.getRandomValues(new Uint8Array(12));
-  const encoded = new TextEncoder().encode(JSON.stringify(data));
-  const encrypted = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, key, encoded);
-  // Combine: [12-byte IV][ciphertext] then Base64-encode for text-based download
-  const combined = new Uint8Array(iv.length + encrypted.byteLength);
-  combined.set(iv);
-  combined.set(new Uint8Array(encrypted), iv.length);
-  // Convert to Base64 string
-  let binary = '';
-  for (let i = 0; i < combined.length; i++) binary += String.fromCharCode(combined[i]);
-  return btoa(binary);
-}
-
-async function decryptCredentials(buffer) {
-  const key = await deriveCredFileKey();
-  let data;
-  // Support both Base64 text (new) and raw binary (legacy)
-  if (buffer instanceof ArrayBuffer) {
-    const text = new TextDecoder().decode(buffer);
-    try {
-      // Try Base64 decode first
-      const binary = atob(text.trim());
-      data = new Uint8Array(binary.length);
-      for (let i = 0; i < binary.length; i++) data[i] = binary.charCodeAt(i);
-    } catch {
-      // Fallback: raw binary
-      data = new Uint8Array(buffer);
-    }
-  } else {
-    data = new Uint8Array(buffer);
-  }
-  const iv = data.slice(0, 12);
-  const ciphertext = data.slice(12);
-  const decrypted = await crypto.subtle.decrypt({ name: 'AES-GCM', iv }, key, ciphertext);
-  return JSON.parse(new TextDecoder().decode(decrypted));
-}
 
 function setupCredFileImport() {
   const dropZone = $('#cred-drop-zone');
