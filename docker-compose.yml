@@ -6,9 +6,9 @@ services:
       context: .
       dockerfile: Dockerfile
     container_name: bwvault
-    # No ports exposed by default — this is a CLI container, not a server.
-    # Uncomment to serve the web dashboard on http://localhost:8080
-    # ports: ["8080:8080"]
+    ports:
+      - "3000:3000"    # HTTP (API proxy + session)
+      - "3443:3443"    # HTTPS (Web Crypto enabled — use this for dashboard)
     volumes:
       - bwvault-data:/data
       - ./agent-harness:/app/agent-harness:ro   # live source in dev

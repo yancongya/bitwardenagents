@@ -54,6 +54,7 @@ async function finishLogin({ client, email, password, kdfConfig, encryptedKey, s
     symmetricKey,
     email,
     kdf: kdfConfig,
+    deviceIdentifier: client.deviceIdentifier,
   };
   session.saveSession(payload);
 
@@ -157,6 +158,7 @@ export async function loginPassword(opts) {
     symmetricKey,
     email,
     kdf: kdfConfig,
+    deviceIdentifier: client.deviceIdentifier,
   };
   session.saveSession(payload);
 

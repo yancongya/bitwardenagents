@@ -9,19 +9,17 @@
  * Uses Vite dev proxy / Cloudflare Pages Functions to bypass CORS
  */
 
-const SERVERS = {
-  '': {  // bitwarden.com (default)
-    apiUrl: '/bw-api',
-    identityUrl: '/bw-identity',
-  },
-  'https://vault.bitwarden.eu': {
-    apiUrl: '/bw-eu-api',
-    identityUrl: '/bw-eu-identity',
-  },
-};
+// In browser (with server.js proxy), use relative paths to avoid CORS.
+// In Node.js (CLI), use absolute URLs to talk directly to Bitwarden.
+const IS_BROWSER = typeof window !== 'undefined';
+const SERVERS = IS_BROWSER ? {
+  '': { apiUrl: '/bw-api', identityUrl: '/bw-identity' },
+  'https://vault.bitwarden.com': { apiUrl: '/bw-api', identityUrl: '/bw-identity' },
+  'https://vault.bitwarden.eu': { apiUrl: '/bw-eu-api', identityUrl: '/bw-eu-identity' },
+} : {};  // Node: no proxy, use absolute URLs (else branch)
 
 export class BitwardenClient {
-  constructor(serverUrl = '') {
+  constructor(serverUrl = '', existingDeviceId = null) {
     const config = SERVERS[serverUrl];
     if (config) {
       this.apiUrl = config.apiUrl;
@@ -36,7 +34,17 @@ export class BitwardenClient {
     // Keep the identity API client version aligned with the current Bitwarden
     // web client. Older versions can be rejected by newer auth policies.
     this.clientVersion = '2026.8.1';
-    this.deviceIdentifier = crypto.randomUUID();
+    // crypto.randomUUID() requires HTTPS or localhost. On HTTP (e.g. NAS LAN),
+    // fall back to a manual UUID v4 generator.
+    // If an existing device ID was provided (from session restore), reuse it
+    // to avoid triggering "new device" notifications on every page load.
+    this.deviceIdentifier = existingDeviceId
+      || (typeof crypto.randomUUID === 'function'
+        ? crypto.randomUUID()
+        : 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+            const r = (Math.random() * 16) | 0;
+            return (c === 'x' ? r : (r & 0x3) | 0x8).toString(16);
+          }));
   }
 
   /**

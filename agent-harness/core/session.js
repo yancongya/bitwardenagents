@@ -21,6 +21,62 @@ import path from 'node:path';
 
 const SESSION_DIR = process.env.BWVAULT_HOME || path.join(os.homedir(), '.bwvault');
 const SESSION_FILE = path.join(SESSION_DIR, 'session.json');
+const PIN_FILE = path.join(SESSION_DIR, 'pin.json');
+
+/**
+ * Set a Web access PIN. The PIN is stored as a salted SHA-256 hash — the raw
+ * PIN is never written to disk. This prevents anyone with file access from
+ * trivially reading it.
+ */
+export async function setPin(pin) {
+  ensureDir();
+  const salt = crypto.randomUUID();
+  const hash = await sha256(salt + pin);
+  const payload = { hash, salt, setAt: Date.now() };
+  const fd = fs.openSync(PIN_FILE, 'w', 0o600);
+  try {
+    fs.writeFileSync(fd, JSON.stringify(payload));
+  } finally {
+    fs.closeSync(fd);
+  }
+  try { fs.chmodSync(PIN_FILE, 0o600); } catch {}
+  return true;
+}
+
+/**
+ * Verify a PIN against the stored hash. Returns true if it matches.
+ */
+export async function verifyPin(pin) {
+  if (!fs.existsSync(PIN_FILE)) return false;
+  try {
+    const { hash, salt } = JSON.parse(fs.readFileSync(PIN_FILE, 'utf8'));
+    return (await sha256(salt + pin)) === hash;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Check if a PIN has been set.
+ */
+export function hasPin() {
+  return fs.existsSync(PIN_FILE);
+}
+
+/**
+ * Remove the PIN (logout / reset).
+ */
+export function clearPin() {
+  if (fs.existsSync(PIN_FILE)) fs.unlinkSync(PIN_FILE);
+  return true;
+}
+
+// --- helpers ---
+import crypto from 'node:crypto';
+
+async function sha256(str) {
+  return crypto.createHash('sha256').update(str).digest('hex');
+}
 
 function ensureDir() {
   if (!fs.existsSync(SESSION_DIR)) {
@@ -45,6 +101,7 @@ export function saveSession(session) {
     macKey: u8ToB64(session.symmetricKey.macKey),
     email: session.email || null,
     kdf: session.kdf || null,
+    deviceIdentifier: session.deviceIdentifier || null,
     savedAt: Date.now(),
   };
 

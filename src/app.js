@@ -85,9 +85,17 @@ function saveSession(serverUrl, accessToken, symKey) {
       accessToken,
       encKey: _u8ToB64(symKey.encKey),
       macKey: _u8ToB64(symKey.macKey),
+      deviceIdentifier: client?.deviceIdentifier || null,
       savedAt: Date.now(),
     };
+    // Persist to both browser storage and server (for CLI/Docker sharing)
     sessionStorage.setItem(SESSION_KEY, JSON.stringify(payload));
+    localStorage.setItem(SESSION_KEY, JSON.stringify(payload));
+    fetch('/api/session', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    }).catch(() => {}); // best-effort, don't block
   } catch (e) {
     console.warn('[Session] Failed to save:', e);
   }
@@ -95,16 +103,15 @@ function saveSession(serverUrl, accessToken, symKey) {
 
 function loadSession() {
   try {
-    const raw = sessionStorage.getItem(SESSION_KEY);
+    const raw = sessionStorage.getItem(SESSION_KEY) || localStorage.getItem(SESSION_KEY);
     if (!raw) return null;
     const data = JSON.parse(raw);
-    // Session older than 1 hour? → still valid, Bitwarden tokens last longer
-    // We'll let the API call fail naturally if expired
     return {
       serverUrl: data.serverUrl || '',
       accessToken: data.accessToken,
       encKey: _b64ToU8(data.encKey),
       macKey: _b64ToU8(data.macKey),
+      deviceIdentifier: data.deviceIdentifier || null,
     };
   } catch {
     return null;
@@ -112,16 +119,127 @@ function loadSession() {
 }
 
 function clearSession() {
+  // Only clear browser-side storage. Never delete the server-side session —
+  // that's the single source of truth for Docker/CLI sharing. Server session
+  // is only cleared by explicit CLI "auth logout".
   sessionStorage.removeItem(SESSION_KEY);
+  localStorage.removeItem(SESSION_KEY);
 }
 
 async function tryRestoreSession() {
-  const saved = loadSession();
-  if (!saved) return false;
+  // Try local first
+  let saved = loadSession();
+  if (saved) return await _restoreFromSession(saved);
+
+  // No local session — check if server has one (Docker / new browser)
+  try {
+    const pinCheck = await fetch('/api/pin').then(r => r.json()).catch(() => ({ pinSet: false }));
+
+    if (pinCheck.pinSet) {
+      // Server has a session protected by PIN — show PIN dialog
+      saved = await _requestPinAndGetSession();
+      if (saved) return await _restoreFromSession(saved);
+      return false;
+    }
+
+    // No PIN set, no local session — try unauthenticated session fetch (legacy)
+    const resp = await fetch('/api/session');
+    const data = await resp.json();
+    if (data.ok && data.session) {
+      saved = {
+        serverUrl: data.session.serverUrl || '',
+        accessToken: data.session.accessToken,
+        encKey: _b64ToU8(data.session.encKey),
+        macKey: _b64ToU8(data.session.macKey),
+        deviceIdentifier: data.session.deviceIdentifier || null,
+      };
+      sessionStorage.setItem(SESSION_KEY, JSON.stringify(data.session));
+      localStorage.setItem(SESSION_KEY, JSON.stringify(data.session));
+      return await _restoreFromSession(saved);
+    }
+  } catch {
+    // server session endpoint unavailable (e.g. Vite dev mode), ignore
+  }
+  return false;
+}
+
+async function _requestPinAndGetSession() {
+  return new Promise((resolve) => {
+    // Show a PIN input overlay
+    const overlay = document.createElement('div');
+    overlay.id = 'pin-overlay';
+    overlay.innerHTML = `
+      <div style="position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.6);
+        display:flex;align-items:center;justify-content:center;z-index:10000">
+        <div style="background:var(--surface,#1e1e2e);border-radius:12px;padding:32px;
+          min-width:320px;text-align:center;box-shadow:0 8px 32px rgba(0,0,0,0.4)">
+          <h3 style="margin:0 0 16px;color:var(--text,#e0e0e0)">🔐 访问验证</h3>
+          <p style="margin:0 0 16px;color:var(--text-secondary,#999);font-size:14px">
+            请输入 Web 访问 PIN</p>
+          <input id="pin-input" type="password" maxlength="8" autocomplete="off"
+            style="width:100%;padding:12px;font-size:18px;text-align:center;
+              border-radius:8px;border:1px solid var(--border,#333);
+              background:var(--bg,#12121a);color:var(--text,#e0e0e0);letter-spacing:6px;
+              box-sizing:border-box" placeholder="••••" />
+          <p id="pin-error" style="color:#f44336;font-size:13px;margin:8px 0 0;min-height:18px"></p>
+          <button id="pin-submit" style="width:100%;margin-top:16px;padding:10px;
+            border:none;border-radius:8px;background:var(--primary,#6366f1);
+            color:white;font-size:15px;cursor:pointer">确认</button>
+        </div>
+      </div>`;
+    document.body.appendChild(overlay);
+    const input = document.getElementById('pin-input');
+    const btn = document.getElementById('pin-submit');
+    const err = document.getElementById('pin-error');
+    input.focus();
+
+    async function submit() {
+      const pin = input.value.trim();
+      if (!pin) { err.textContent = '请输入 PIN'; return; }
+      btn.disabled = true;
+      btn.textContent = '验证中...';
+      try {
+        const resp = await fetch('/api/session/verify', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ pin }),
+        });
+        const data = await resp.json();
+        if (data.ok && data.session) {
+          overlay.remove();
+          // Populate browser storage
+          sessionStorage.setItem(SESSION_KEY, JSON.stringify(data.session));
+          localStorage.setItem(SESSION_KEY, JSON.stringify(data.session));
+          resolve({
+            serverUrl: data.session.serverUrl || '',
+            accessToken: data.session.accessToken,
+            encKey: _b64ToU8(data.session.encKey),
+            macKey: _b64ToU8(data.session.macKey),
+            deviceIdentifier: data.session.deviceIdentifier || null,
+          });
+        } else {
+          err.textContent = data.error || 'PIN 错误';
+          input.value = '';
+          input.focus();
+          btn.disabled = false;
+          btn.textContent = '确认';
+        }
+      } catch (e) {
+        err.textContent = '网络错误';
+        btn.disabled = false;
+        btn.textContent = '确认';
+      }
+    }
+    btn.addEventListener('click', submit);
+    input.addEventListener('keydown', (e) => { if (e.key === 'Enter') submit(); });
+  });
+}
+
+async function _restoreFromSession(saved) {
 
   try {
-    // Restore client with saved access token
-    client = new BitwardenClient(saved.serverUrl);
+    // Restore client with saved access token and device identifier
+    client = new BitwardenClient(saved.serverUrl, saved.deviceIdentifier);
     client.accessToken = saved.accessToken;
 
     // Restore symmetric key
@@ -152,7 +270,33 @@ async function tryRestoreSession() {
     showToast(t('toast.session.restored'), 'success');
     return true;
   } catch (err) {
-    console.warn('[Session] Restore failed, clearing:', err.message);
+    console.warn('[Session] Restore failed:', err.message);
+    const msg = String(err.message || err);
+
+    // Distinguish transient errors from real auth failures.
+    // Transient: network timeout, DNS failure, CORS — retry later, don't nuke session.
+    // Auth failure: 401/403 — token expired, need re-login.
+    const isTransient = /network|timeout|fetch|Failed to fetch|ECONNREFUSED|502|503|504/i.test(msg);
+    const isAuth = /401|403|unauthorized|invalid_token/i.test(msg);
+
+    if (isTransient) {
+      // Keep session, show retry option.
+      setLoginState('idle', '');
+      showToast(t('toast.session.networkError') || '网络错误，session 已保留，刷新重试', 'warning');
+      return false;
+    }
+
+    if (isAuth) {
+      // Token truly expired — clear browser side only, keep server session.
+      console.warn('[Session] Auth error, clearing browser session only');
+      clearSession();
+      client = null;
+      symmetricKey = null;
+      setLoginState('idle', '');
+      return false;
+    }
+
+    // Unknown error — clear browser side, keep server session for next attempt.
     clearSession();
     client = null;
     symmetricKey = null;

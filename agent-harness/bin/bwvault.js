@@ -146,6 +146,7 @@ async function dispatchAuth(args, ctx) {
     password: 'string',
     server: 'string',
     'api-key': 'boolean',
+    'set-pin': 'string',
   });
   const common = { json: ctx.json, server: opts.server };
 
@@ -160,10 +161,23 @@ async function dispatchAuth(args, ctx) {
         password: opts.password,
       };
       if (opts['api-key']) {
-        return auth.loginApiKey(mapped);
+        const result = await auth.loginApiKey(mapped);
+        // Set Web access PIN after successful login if requested.
+        if (opts['set-pin'] && result.ok) {
+          const { setPin } = await import('../core/session.js');
+          await setPin(opts['set-pin']);
+          result.pinSet = true;
+        }
+        return result;
       }
       // Default to password login when --api-key is absent.
-      return auth.loginPassword(mapped);
+      const result = await auth.loginPassword(mapped);
+      if (opts['set-pin'] && result.ok) {
+        const { setPin } = await import('../core/session.js');
+        await setPin(opts['set-pin']);
+        result.pinSet = true;
+      }
+      return result;
     }
     case 'logout':
       return auth.logout();
