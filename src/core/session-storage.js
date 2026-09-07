@@ -14,11 +14,12 @@ export function _b64ToU8(b64) {
   return new Uint8Array([...bin].map(c => c.charCodeAt(0)));
 }
 
-export function saveSession(serverUrl, accessToken, symKey, deviceIdentifier = null) {
+export function saveSession(serverUrl, accessToken, symKey, deviceIdentifier = null, refreshToken = null) {
   try {
     const payload = {
       serverUrl,
       accessToken,
+      refreshToken,
       encKey: _u8ToB64(symKey.encKey),
       macKey: _u8ToB64(symKey.macKey),
       deviceIdentifier,
@@ -45,6 +46,7 @@ export function loadSession() {
     return {
       serverUrl: data.serverUrl || '',
       accessToken: data.accessToken,
+      refreshToken: data.refreshToken || null,
       encKey: _b64ToU8(data.encKey),
       macKey: _b64ToU8(data.macKey),
       deviceIdentifier: data.deviceIdentifier || null,

@@ -17,6 +17,7 @@
  */
 
 import crypto from 'node:crypto';
+import { getDeviceIdentifier } from './session.js';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -107,5 +108,5 @@ export const SERVER_PRESETS = {
  */
 export function createClient(serverUrl) {
   const url = serverUrl || SERVER_PRESETS.us;
-  return new BitwardenClient(url);
+  return new BitwardenClient(url, getDeviceIdentifier());
 }

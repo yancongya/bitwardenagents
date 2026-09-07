@@ -45,6 +45,13 @@ export class BitwardenClient {
             const r = (Math.random() * 16) | 0;
             return (c === 'x' ? r : (r & 0x3) | 0x8).toString(16);
           }));
+    if (IS_BROWSER) {
+      try {
+        const key = 'bw_device_id';
+        this.deviceIdentifier = existingDeviceId || localStorage.getItem(key) || this.deviceIdentifier;
+        localStorage.setItem(key, this.deviceIdentifier);
+      } catch { /* Storage may be disabled; keep the in-memory identity. */ }
+    }
   }
 
   /**
@@ -668,6 +675,10 @@ export class BitwardenClient {
       };
       try {
         const res = await fetch(url, { ...options, headers });
+        if (res.status === 401 && this.refreshToken && attempt === 0) {
+          await this.refreshAccessToken();
+          continue;
+        }
         // 4xx = business error, don't retry; 2xx/3xx = success
         if (res.ok || res.status < 500) return res;
         // 5xx = server error, retry unless last attempt
@@ -681,5 +692,23 @@ export class BitwardenClient {
       const jitter = Math.random() * 500;
       await new Promise(r => setTimeout(r, delay + jitter));
     }
+  }
+
+  async refreshAccessToken() {
+    if (!this._refreshPromise) {
+      this._refreshPromise = (async () => {
+        const res = await fetch(`${this.identityUrl}/connect/token`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          body: new URLSearchParams({ grant_type: 'refresh_token', client_id: 'web', refresh_token: this.refreshToken }),
+        });
+        if (!res.ok) throw new Error(`Session renewal failed: ${res.status}`);
+        const data = await res.json();
+        this.accessToken = data.access_token;
+        this.refreshToken = data.refresh_token || this.refreshToken;
+        await this.onTokenRefresh?.();
+      })().finally(() => { this._refreshPromise = null; });
+    }
+    return this._refreshPromise;
   }
 }

@@ -81,7 +81,7 @@ function renderCurrentView() {
 async function tryRestoreSession() {
   // Try local first
   let saved = loadSession();
-  if (saved) return await _restoreFromSession(saved);
+  if (saved && await _restoreFromSession(saved)) return true;
 
   // No local session — check if server has one (Docker / new browser)
   try {
@@ -101,6 +101,7 @@ async function tryRestoreSession() {
       saved = {
         serverUrl: data.session.serverUrl || '',
         accessToken: data.session.accessToken,
+        refreshToken: data.session.refreshToken || null,
         encKey: _b64ToU8(data.session.encKey),
         macKey: _b64ToU8(data.session.macKey),
         deviceIdentifier: data.session.deviceIdentifier || null,
@@ -165,6 +166,7 @@ async function _requestPinAndGetSession() {
           resolve({
             serverUrl: data.session.serverUrl || '',
             accessToken: data.session.accessToken,
+            refreshToken: data.session.refreshToken || null,
             encKey: _b64ToU8(data.session.encKey),
             macKey: _b64ToU8(data.session.macKey),
             deviceIdentifier: data.session.deviceIdentifier || null,
@@ -191,8 +193,14 @@ async function _restoreFromSession(saved) {
 
   try {
     // Restore client with saved access token and device identifier
+    if (!globalThis.crypto?.subtle) {
+      setLoginState('error', '当前 HTTP 地址不支持保险库解密。请使用此服务的 HTTPS 地址（默认端口 3443）后重新输入 PIN。');
+      return false;
+    }
     client = new BitwardenClient(saved.serverUrl, saved.deviceIdentifier);
     client.accessToken = saved.accessToken;
+    client.refreshToken = saved.refreshToken || null;
+    client.onTokenRefresh = () => saveSession(saved.serverUrl, client.accessToken, symmetricKey, client.deviceIdentifier, client.refreshToken);
 
     // Restore symmetric key
     symmetricKey = { encKey: saved.encKey, macKey: saved.macKey };
@@ -233,7 +241,7 @@ async function _restoreFromSession(saved) {
 
     if (isTransient) {
       // Keep session, show retry option.
-      setLoginState('idle', '');
+      setLoginState('error', '恢复会话时网络连接失败，请刷新重试。');
       showToast(t('toast.session.networkError') || '网络错误，session 已保留，刷新重试', 'warning');
       return false;
     }
@@ -244,7 +252,7 @@ async function _restoreFromSession(saved) {
       clearSession();
       client = null;
       symmetricKey = null;
-      setLoginState('idle', '');
+      setLoginState('error', '保存的 Bitwarden 登录已过期，无法自动续期。请重新登录后再使用 PIN 解锁。');
       return false;
     }
 
@@ -252,7 +260,7 @@ async function _restoreFromSession(saved) {
     clearSession();
     client = null;
     symmetricKey = null;
-    setLoginState('idle', '');
+    setLoginState('error', `恢复会话失败：${msg}`);
     return false;
   }
 }
@@ -430,7 +438,7 @@ async function handleApiKeyLogin() {
     }
 
     // Save session for persistence
-    saveSession(serverUrl, client.accessToken, symmetricKey, client?.deviceIdentifier || null);
+    saveSession(serverUrl, client.accessToken, symmetricKey, client?.deviceIdentifier || null, client.refreshToken);
 
     enterDashboard();
   } catch (err) {
@@ -498,7 +506,7 @@ async function handlePasswordLogin() {
     }
 
     // Save session for persistence
-    saveSession(serverUrl, client.accessToken, symmetricKey, client?.deviceIdentifier || null);
+    saveSession(serverUrl, client.accessToken, symmetricKey, client?.deviceIdentifier || null, client.refreshToken);
 
     enterDashboard();
   } catch (err) {
@@ -643,7 +651,7 @@ function showDeviceVerificationModal(email, password, serverUrl) {
       }
 
       // Save session for persistence
-      saveSession(serverUrl, client.accessToken, symmetricKey, client?.deviceIdentifier || null);
+      saveSession(serverUrl, client.accessToken, symmetricKey, client?.deviceIdentifier || null, client.refreshToken);
 
       closeModal();
       enterDashboard();

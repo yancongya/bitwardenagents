@@ -23,6 +23,17 @@ const SESSION_DIR = process.env.BWVAULT_HOME || path.join(os.homedir(), '.bwvaul
 const SESSION_FILE = path.join(SESSION_DIR, 'session.json');
 const PIN_FILE = path.join(SESSION_DIR, 'pin.json');
 
+// Device identity survives logout and container replacement on the /data volume.
+export function getDeviceIdentifier() {
+  ensureDir();
+  const file = path.join(SESSION_DIR, 'device-id');
+  if (fs.existsSync(file)) return fs.readFileSync(file, 'utf8').trim();
+  const id = loadSession()?.deviceIdentifier || crypto.randomUUID();
+  try { fs.writeFileSync(file, id, { flag: 'wx', mode: 0o600 }); }
+  catch (error) { if (error.code !== 'EEXIST') throw error; }
+  return fs.readFileSync(file, 'utf8').trim();
+}
+
 /**
  * Set a Web access PIN. The PIN is stored as a salted SHA-256 hash — the raw
  * PIN is never written to disk. This prevents anyone with file access from

@@ -8,62 +8,86 @@
  * ============================================================ */
 
 :root {
-  --bg-primary: #0a0b10;
-  --bg-secondary: #111320;
-  --bg-card: #171930;
-  --bg-card-hover: #1e2140;
-  --bg-elevated: #1c1f3a;
-  --bg-input: #0e0f1a;
-  --bg-sidebar: #0e1020;
-  --border: #252845;
-  --border-focus: #175DDC;
-  --border-subtle: #1c1f35;
-  --text-primary: #e8eaf0;
-  --text-secondary: #8b8fa3;
-  --text-muted: #5c6072;
-  --brand: #175DDC;
-  --brand-light: #3b7bf7;
-  --brand-glow: rgba(23, 93, 220, 0.25);
+  /* ── Surfaces (neutral Zinc, no blue-purple tint) ── */
+  --bg-primary: #09090b;
+  --bg-secondary: #18181b;
+  --bg-card: #1e1e22;
+  --bg-card-hover: #26262a;
+  --bg-elevated: #222226;
+  --bg-input: #131316;
+  --bg-sidebar: #111114;
+
+  /* ── Borders (neutral, no blue tint) ── */
+  --border: #27272a;
+  --border-focus: #3b82f6;
+  --border-subtle: #1f1f23;
+
+  /* ── Text ── */
+  --text-primary: #fafafa;
+  --text-secondary: #a1a1aa;
+  --text-muted: #52525b;
+
+  /* ── Brand: single blue, no glow, no purple ── */
+  --brand: #3b82f6;
+  --brand-light: #60a5fa;
+
+  /* ── Semantic ── */
   --success: #22c55e;
-  --success-bg: rgba(34, 197, 94, 0.10);
-  --warn: #f59e0b;
-  --warn-bg: rgba(245, 158, 11, 0.10);
+  --success-bg: rgba(34, 197, 94, 0.08);
+  --warn: #eab308;
+  --warn-bg: rgba(234, 179, 8, 0.08);
   --danger: #ef4444;
-  --danger-bg: rgba(239, 68, 68, 0.10);
-  --info: #6366f1;
-  --info-bg: rgba(99, 102, 241, 0.10);
-  --radius: 12px;
-  --radius-sm: 8px;
-  --radius-xs: 6px;
-  --shadow-card: 0 2px 12px rgba(0, 0, 0, 0.3);
-  --shadow-lg: 0 8px 32px rgba(0, 0, 0, 0.5);
+  --danger-bg: rgba(239, 68, 68, 0.08);
+  --info: #60a5fa;
+  --info-bg: rgba(96, 165, 250, 0.08);
+
+  /* ── Shape: tighter, sharper ── */
+  --radius: 8px;
+  --radius-sm: 6px;
+  --radius-xs: 4px;
+
+  /* ── Shadows: subtle, border-first ── */
+  --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.3);
+  --shadow-lg: 0 4px 12px rgba(0, 0, 0, 0.4);
+
+  /* ── Layout ── */
   --sidebar-w: 220px;
   --topbar-h: 64px;
-  --font: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
-  --transition: 0.2s ease;
+  --font: 'Geist', -apple-system, BlinkMacSystemFont, 'Inter', system-ui, sans-serif;
+  --transition: 0.15s ease;
 }
 
 [data-theme="light"] {
-  --bg-primary: #f5f6fa;
-  --bg-secondary: #ebedf5;
+  /* ── Surfaces (neutral warm-gray, no blue tint) ── */
+  --bg-primary: #fafafa;
+  --bg-secondary: #f4f4f5;
   --bg-card: #ffffff;
-  --bg-card-hover: #f0f1f8;
-  --bg-elevated: #f8f9fc;
-  --bg-input: #f0f1f5;
-  --bg-sidebar: #ffffff;
-  --border: #d8dbe6;
-  --border-focus: #175DDC;
-  --border-subtle: #e8eaf0;
-  --text-primary: #1a1c2e;
-  --text-secondary: #5c6072;
-  --text-muted: #8b8fa3;
-  --brand: #175DDC;
+  --bg-card-hover: #f4f4f5;
+  --bg-elevated: #ffffff;
+  --bg-input: #f4f4f5;
+  --bg-sidebar: #fafafa;
+
+  /* ── Borders ── */
+  --border: #e4e4e7;
+  --border-focus: #3b82f6;
+  --border-subtle: #f4f4f5;
+
+  /* ── Text ── */
+  --text-primary: #09090b;
+  --text-secondary: #52525b;
+  --text-muted: #a1a1aa;
+
+  /* ── Brand: same blue, no glow ── */
+  --brand: #3b82f6;
   --brand-light: #2563eb;
-  --brand-glow: rgba(23, 93, 220, 0.12);
-  --success-bg: rgba(34, 197, 94, 0.08);
-  --warn-bg: rgba(245, 158, 11, 0.08);
-  --danger-bg: rgba(239, 68, 68, 0.08);
-  --info-bg: rgba(99, 102, 241, 0.08);
-  --shadow-card: 0 2px 8px rgba(0, 0, 0, 0.06);
-  --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.1);
+
+  /* ── Semantic ── */
+  --success-bg: rgba(34, 197, 94, 0.06);
+  --warn-bg: rgba(234, 179, 8, 0.06);
+  --danger-bg: rgba(239, 68, 68, 0.06);
+  --info-bg: rgba(96, 165, 250, 0.06);
+
+  /* ── Shadows ── */
+  --shadow-card: 0 1px 3px rgba(0, 0, 0, 0.06);
+  --shadow-lg: 0 4px 12px rgba(0, 0, 0, 0.08);
 }

@@ -2,13 +2,13 @@
 
 /* Light theme overrides for specific elements */
 [data-theme="light"] .login-header h1 {
-  background: linear-gradient(135deg, #1a1c2e 30%, var(--brand));
+  color: var(--text-primary);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
 }
 [data-theme="light"] .sidebar-title {
-  background: linear-gradient(135deg, #1a1c2e 30%, var(--brand));
+  color: var(--text-primary);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
@@ -61,7 +61,7 @@
 .ctrl-btn:hover {
   border-color: var(--brand);
   color: var(--brand-light);
-  background: var(--brand-glow);
+  background: rgba(59, 130, 246, 0.06);
 }
 .ctrl-icon { font-size: 1rem; line-height: 1; }
 .ctrl-label { letter-spacing: 0.03em; }
@@ -139,13 +139,13 @@ body {
 
 .logo {
   margin-bottom: 16px;
-  filter: drop-shadow(0 4px 16px var(--brand-glow));
+  filter: none;
 }
 
 .login-header h1 {
   font-size: 1.8rem;
   font-weight: 700;
-  background: linear-gradient(135deg, #fff 30%, var(--brand-light));
+  color: var(--text-primary);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
@@ -243,7 +243,8 @@ body {
 .form-group select:focus {
   outline: none;
   border-color: var(--border-focus);
-  box-shadow: 0 0 0 3px var(--brand-glow);
+  outline: 2px solid var(--brand);
+  outline-offset: 2px;
 }
 
 .form-group input::placeholder { color: var(--text-muted); }
@@ -251,7 +252,7 @@ body {
 .btn-primary {
   width: 100%;
   padding: 14px;
-  background: linear-gradient(135deg, var(--brand), var(--brand-light));
+  background: var(--brand);
   color: white;
   border: none;
   border-radius: var(--radius-sm);
@@ -264,7 +265,7 @@ body {
 
 .btn-primary:hover:not(:disabled) {
   transform: translateY(-1px);
-  box-shadow: 0 4px 20px var(--brand-glow);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
 }
 
 .btn-primary:disabled { opacity: 0.6; cursor: not-allowed; }
@@ -382,7 +383,7 @@ body {
 .sidebar-title {
   font-size: 1rem;
   font-weight: 700;
-  background: linear-gradient(135deg, #fff 30%, var(--brand-light));
+  color: var(--text-primary);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
@@ -746,7 +747,7 @@ body {
 }
 
 .nav-item.active {
-  background: var(--brand-glow);
+  background: rgba(59, 130, 246, 0.06);
   color: var(--brand-light);
   font-weight: 600;
 }
@@ -854,7 +855,8 @@ body {
 .search-input:focus {
   outline: none;
   border-color: var(--brand);
-  box-shadow: 0 0 0 3px var(--brand-glow);
+  outline: 2px solid var(--brand);
+  outline-offset: 2px;
 }
 
 .search-input::placeholder { color: var(--text-muted); }
@@ -911,7 +913,7 @@ body {
 }
 
 .filter-tag.active {
-  background: var(--brand-glow);
+  background: rgba(59, 130, 246, 0.06);
   border-color: var(--brand);
   color: var(--brand-light);
 }
@@ -1121,7 +1123,7 @@ body {
 }
 
 .vault-item.selected {
-  background: var(--brand-glow);
+  background: rgba(59, 130, 246, 0.06);
   border-color: var(--brand);
 }
 
@@ -1279,7 +1281,7 @@ body {
 /* Single card merge button */
 .single-merge-btn {
   padding: 5px 14px;
-  background: linear-gradient(135deg, var(--brand), var(--brand-light));
+  background: var(--brand);
   color: white;
   border: none;
   border-radius: var(--radius-xs);
@@ -1294,7 +1296,7 @@ body {
 
 .single-merge-btn:hover:not(:disabled) {
   transform: translateY(-1px);
-  box-shadow: 0 3px 12px var(--brand-glow);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
 }
 
 .single-merge-btn:disabled {
@@ -1494,7 +1496,7 @@ body {
 
 .merge-btn {
   padding: 10px 28px;
-  background: linear-gradient(135deg, var(--brand), var(--brand-light));
+  background: var(--brand);
   color: white;
   border: none;
   border-radius: var(--radius-sm);
@@ -1507,7 +1509,7 @@ body {
 
 .merge-btn:hover:not(:disabled) {
   transform: translateY(-1px);
-  box-shadow: 0 4px 20px var(--brand-glow);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
 }
 
 .merge-btn:disabled { opacity: 0.6; cursor: not-allowed; }
@@ -1987,8 +1989,9 @@ body {
 .edit-field select:focus {
   outline: none;
   border-color: var(--brand);
-  box-shadow: inset 0 1px 3px rgba(0,0,0,0.15),
-              0 0 0 3px var(--brand-glow);
+  box-shadow: inset 0 1px 3px rgba(0,0,0,0.15);
+  outline: 2px solid var(--brand);
+  outline-offset: 2px;
 }
 
 .edit-field input::placeholder,
@@ -2043,8 +2046,9 @@ body {
 .uri-row input:focus {
   outline: none;
   border-color: var(--brand);
-  box-shadow: inset 0 1px 3px rgba(0,0,0,0.15),
-              0 0 0 3px var(--brand-glow);
+  box-shadow: inset 0 1px 3px rgba(0,0,0,0.15);
+  outline: 2px solid var(--brand);
+  outline-offset: 2px;
 }
 
 .uri-remove-btn, .field-remove-btn {
@@ -2086,7 +2090,8 @@ body {
   border-color: var(--brand);
   color: var(--brand-light);
   background: rgba(23, 93, 220, 0.06);
-  box-shadow: 0 0 0 3px var(--brand-glow);
+  outline: 2px solid var(--brand);
+  outline-offset: 2px;
 }
 
 /* ── Edit Actions (Save / Cancel) ── */
@@ -2195,8 +2200,9 @@ body {
 .cf-name-type .edit-field-name:focus {
   outline: none;
   border-color: var(--brand);
-  box-shadow: inset 0 1px 3px rgba(0,0,0,0.15),
-              0 0 0 3px var(--brand-glow);
+  box-shadow: inset 0 1px 3px rgba(0,0,0,0.15);
+  outline: 2px solid var(--brand);
+  outline-offset: 2px;
 }
 
 .edit-field-type {
@@ -2220,7 +2226,8 @@ body {
 .edit-field-type:focus {
   outline: none;
   border-color: var(--brand);
-  box-shadow: 0 0 0 3px var(--brand-glow);
+  outline: 2px solid var(--brand);
+  outline-offset: 2px;
 }
 
 /* Row 2: Value + Remove button */
@@ -2245,8 +2252,9 @@ body {
 .cf-value-action .edit-field-value:focus {
   outline: none;
   border-color: var(--brand);
-  box-shadow: inset 0 1px 3px rgba(0,0,0,0.15),
-              0 0 0 3px var(--brand-glow);
+  box-shadow: inset 0 1px 3px rgba(0,0,0,0.15);
+  outline: 2px solid var(--brand);
+  outline-offset: 2px;
 }
 
 /* Boolean checkbox wrap */
@@ -2564,8 +2572,7 @@ body {
 .merge-progress-bar {
   height: 100%;
   width: 0%;
-  background: linear-gradient(90deg, #175DDC, #6c4bef, #175DDC);
-  background-size: 200% 100%;
+  background: var(--brand);
   border-radius: 6px;
   transition: width 0.3s ease;
   animation: shimmer 2s infinite linear;
@@ -2767,7 +2774,7 @@ body {
   color: var(--brand-light, #93b4f5);
   background: var(--bg-input);
   border-bottom: 1px solid var(--border);
-  border-left: 3px solid var(--brand, #175DDC);
+  border-left: 3px solid var(--brand);
   letter-spacing: 1.5px;
   text-transform: uppercase;
 }
@@ -2819,7 +2826,7 @@ body {
 
 .az-index-letter.active {
   color: #fff;
-  background: var(--brand, #175DDC);
+  background: var(--brand);
   box-shadow: 0 0 8px rgba(23, 93, 220, 0.4);
   transform: scale(1.2);
 }

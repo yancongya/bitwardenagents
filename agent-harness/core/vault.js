@@ -103,7 +103,6 @@ export async function syncVault(session, onProgress) {
     .update(JSON.stringify(raw.Profile?.RevisionDate || '') + (raw.Ciphers || []).length)
     .digest('hex');
 
-  const cached = loadCache();
   if (cached && cached.revisionHash === revisionHash) {
     if (onProgress) onProgress(cached.ciphers.length, cached.ciphers.length);
     return cached;
