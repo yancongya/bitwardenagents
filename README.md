@@ -191,17 +191,38 @@ docker run -d --name bwvault \
   --restart unless-stopped \
   bwvault
 
-# 2. 在容器内登录（一次性，写入加密的 API Key + 会话）
-echo "$BWVAULT_PASSWORD" | docker run --rm -i -v bwvault-data:/data bwvault \
-  cli auth login --api-key \
+# 2. 在同一个容器内登录（一次性，写入加密的 API Key + 会话）
+echo "$BWVAULT_PASSWORD" | docker exec -i bwvault \
+  node /app/agent-harness/bin/bwvault.js \
+  auth login --api-key \
   --client-id "user.xxxx-xxxx-xxxx" \
   --client-secret "xxxxx" \
   --email you@example.com
 
-# 3. 日常 CLI 使用
-docker run --rm -v bwvault-data:/data bwvault cli vault list --json
-docker run --rm -v bwvault-data:/data bwvault cli analyze health
+# 3. 日常 CLI 使用，同 Web 共享 /data/session
+docker exec bwvault node /app/agent-harness/bin/bwvault.js vault list --json
+docker exec bwvault node /app/agent-harness/bin/bwvault.js analyze health
 ```
+
+NAS 生产环境不要另起 `docker run -v bwvault-data:/data`。线上容器使用宿主机
+`/vol1/1000/services/data/bwvault:/data`，named volume 是另一套空数据。
+在项目根目录直接使用固定代理命令：
+
+```bash
+./bitwardenagents auth status --json
+./bitwardenagents credential list --json
+./bitwardenagents vault list --json
+```
+
+写入服务凭据仍通过 stdin，不进入命令参数：
+
+```bash
+printf '%s' "$SECRET" | ./bitwardenagents credential set \
+  --alias service.token --username agent --url https://service.example --apply --json
+```
+
+容器重启后先在 Web 输入一次 PIN。解锁完成后，代理命令直接复用线上
+`/data/session`，不需要重新输入账号、主密码或 API Key。
 
 > [!NOTE]
 > **浏览器 Web Crypto API 要求 HTTPS 或 localhost**。自托管时优先访问 `https://<your-host>:3443/`（自签证书，浏览器需手动信任一次）；纯 HTTP 端口 3000 仅供 API / CLI 使用。

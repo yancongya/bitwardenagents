@@ -25,6 +25,10 @@ authenticate with a Bitwarden vault, inspect entries, analyse password health,
 detect duplicates and perform safe cleanup — entirely from the terminal without
 exposing any plaintext secrets.
 
+For the user's NAS deployment, run the repository-root `./bitwardenagents`
+proxy. It targets the existing `bwvault` container and shared `/data/session`;
+do not start a temporary container with a separate named volume.
+
 ## Safety Rules
 
 1. **Never print secrets** unless `--reveal` is explicitly passed.

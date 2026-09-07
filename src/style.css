@@ -227,7 +227,21 @@ body:not(.auth-pending) #auth-bootstrap {
 
 .logo {
   margin-bottom: 32px;
-  filter: none;
+}
+
+.brand-mark {
+  display: block;
+  flex: 0 0 auto;
+}
+
+.brand-mark-login {
+  width: 64px;
+  height: 64px;
+}
+
+.brand-mark-sidebar {
+  width: 32px;
+  height: 32px;
 }
 
 .login-product-name {

@@ -1,0 +1,15 @@
+#!/usr/bin/env bash
+# Run the CLI in the existing NAS container so Web and CLI share /data/session.
+# Stdin is forwarded for credential writes; secrets are never added to argv.
+set -euo pipefail
+
+nas_host="${BITWARDENAGENTS_NAS:-tycon@192.168.31.110}"
+container="${BITWARDENAGENTS_CONTAINER:-bwvault}"
+
+if [ "$#" -eq 0 ]; then
+  set -- --help
+fi
+
+remote=(sudo -n docker exec -i "$container" node /app/agent-harness/bin/bwvault.js "$@")
+printf -v remote_command '%q ' "${remote[@]}"
+exec ssh "$nas_host" "$remote_command"

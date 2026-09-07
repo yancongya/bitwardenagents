@@ -128,8 +128,6 @@ export class BitwardenClient {
    * Login with master password (may trigger CAPTCHA)
    */
   async loginWithPassword(email, hashedPassword, twoFactorToken = null, captchaResponse = null) {
-    console.log('Password login request:', { email, hashedPassword: hashedPassword.substring(0, 20) + '...' });
-    
     const body = new URLSearchParams({
       grant_type: 'password',
       username: email,
@@ -150,13 +148,6 @@ export class BitwardenClient {
       body.set('captchaResponse', captchaResponse);
     }
 
-    console.log('Password login headers:', {
-      'Content-Type': 'application/x-www-form-urlencoded',
-      'Bitwarden-Client-Version': this.clientVersion,
-      'Bitwarden-Client-Name': 'web',
-      'Auth-Email': btoa(email),
-    });
-
     const res = await fetch(`${this.identityUrl}/connect/token`, {
       method: 'POST',
       headers: {
@@ -169,12 +160,7 @@ export class BitwardenClient {
     });
 
     const data = await res.json();
-    console.log('Password login response:', { status: res.status, data });
-
     if (!res.ok) {
-      console.log('Login error response:', data);
-      console.log('Full error details:', JSON.stringify(data, null, 2));
-      
       // Check for CAPTCHA requirement
       if (data.HCaptcha_SiteKey) {
         throw {
@@ -227,8 +213,6 @@ export class BitwardenClient {
    * This method should be called after initial login attempt fails with new_device_required error
    */
   async verifyNewDevice(email, code) {
-    console.log('Device verification request:', { email, code: code.substring(0, 3) + '***', deviceIdentifier: this.deviceIdentifier });
-    
     const body = new URLSearchParams({
       grant_type: 'password',
       username: email,
@@ -253,8 +237,6 @@ export class BitwardenClient {
     });
 
     const data = await res.json();
-    console.log('Device verification response:', { status: res.status, data });
-
     if (!res.ok) {
       throw new Error(data.error_description || data.ErrorModel?.Message || `Device verification failed: ${res.status}`);
     }
@@ -497,8 +479,6 @@ export class BitwardenClient {
       payload.sshKey = null;
     }
 
-    console.log(`[updateCipher] PUT /ciphers/${id} key=${!!payload.key}`, JSON.stringify(payload).substring(0, 2000));
-
     const res = await this._authedFetch(`${this.apiUrl}/ciphers/${id}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
@@ -506,8 +486,8 @@ export class BitwardenClient {
     });
     if (!res.ok) {
       const err = await res.json().catch(() => ({}));
-      console.error(`[updateCipher] FAILED for ${id}:`, JSON.stringify(err));
-      throw new Error(`Update cipher failed: ${res.status} - ${err.message || err.Message || JSON.stringify(err)}`);
+      console.error(`[updateCipher] FAILED for ${id}: ${res.status}`);
+      throw new Error(`Update cipher failed: ${res.status} - ${err.message || err.Message || 'request rejected'}`);
     }
     return res.json();
   }
@@ -517,7 +497,6 @@ export class BitwardenClient {
    * Accepts a fully constructed CipherRequest payload (camelCase, encrypted fields)
    */
   async createCipher(cipherPayload) {
-    console.log('[createCipher] POST /ciphers', JSON.stringify(cipherPayload).substring(0, 1500));
     const res = await this._authedFetch(`${this.apiUrl}/ciphers`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -525,11 +504,10 @@ export class BitwardenClient {
     });
     if (!res.ok) {
       const err = await res.json().catch(() => ({}));
-      console.error('[createCipher] FAILED:', JSON.stringify(err));
-      throw new Error(`Create cipher failed: ${res.status} - ${err.Message || err.message || JSON.stringify(err)}`);
+      console.error(`[createCipher] FAILED: ${res.status}`);
+      throw new Error(`Create cipher failed: ${res.status} - ${err.Message || err.message || 'request rejected'}`);
     }
     const result = await res.json();
-    console.log('[createCipher] SUCCESS, new id:', result.id || result.Id);
     return result;
   }
 

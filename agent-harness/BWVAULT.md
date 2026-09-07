@@ -21,7 +21,7 @@
 | File | Role |
 |------|------|
 | `core/bridge.js` | Re-exports `src/crypto.js` + `src/bitwarden-api.js` with Node-native Argon2 |
-| `core/session.js` | Persistent session (symmetric key) at `~/.bwvault/session.json` |
+| `core/session.js` | Persistent session at `$BWVAULT_HOME/session.json`; local fallback is `~/.bwvault/session.json` |
 | `core/security.js` | Redaction, digest, strength — no plaintext in output |
 | `core/vault.js` | Sync + decrypt ciphers/folders |
 | `core/display.js` | Table / KV / JSON rendering |
