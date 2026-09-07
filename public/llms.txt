@@ -1,5 +1,5 @@
-# Bitwarden Vault Manager
-> Open-source, client-side encrypted Bitwarden vault management dashboard. All cryptographic operations (PBKDF2/Argon2 key derivation, HKDF stretch, AES-256-CBC encrypt/decrypt) execute entirely in the browser — zero plaintext data ever reaches any server.
+# Bitwardenagents
+> Open-source, client-side encrypted Bitwarden vault management dashboard with AI Agent CLI. All cryptographic operations (PBKDF2/Argon2 key derivation, HKDF stretch, AES-256-CBC encrypt/decrypt) execute entirely in the browser — zero plaintext data ever reaches any server. The `bwvault` CLI lets AI agents safely inspect, analyse, and clean a vault without exposing plaintext.
 
 ## Live Demo
 - URL: https://bitwardenagents.itycon.cn/
@@ -102,3 +102,9 @@ The health engine scores your vault 0–100 and flags:
   - `src/i18n.js` — 375+ key bilingual translation system
   - `src/demo-data.js` — Demo mode data generator
   - `src/theme.js` — Dark/light theme manager
+
+## Deployment: CF Pages Gotchas
+1. **`functions/` must be inside the upload directory.** `wrangler pages deploy dist` only uploads `dist/`; a root-level `functions/[[path]].js` is silently ignored → proxy returns 404 with no error. Fix: build script must `cp -R functions dist/functions`.
+2. **Non-interactive shell fails on first deploy.** `wrangler pages deploy` prompts for project creation → errors in CI/non-TTY. Fix: run `wrangler pages project create` first.
+3. **Custom domains need DNS records.** CF Pages does NOT auto-create CNAME when the token lacks `dns:write` scope. wrangler's OAuth token only has `zone:read` — you must add CNAME manually or use a separate API token with `Zone.DNS:Edit`.
+4. **`auth status` is a false-positive check.** It only verifies the session file exists and has correct permissions — it does NOT validate the token against Bitwarden API. A stale session shows `authenticated: true` but `vault sync` returns 401.

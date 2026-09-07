@@ -480,8 +480,8 @@ A：`bw` 是官方通用 CLI；`bwvault` 专注**管理**任务——去重、�
 <!-- 链接变量 -->
 [demo]: https://bitwardenagents.itycon.cn/
 [demo-shield]: https://img.shields.io/badge/Live-Demo-brightgreen?style=flat-square
-[bug]: https://github.com/yancongya/bitwarden-vault-manager/issues/new?labels=bug
-[feat]: https://github.com/yancongya/bitwarden-vault-manager/issues/new?labels=enhancement
+[bug]: https://github.com/yancongya/bitwarden-vault-manager/issues/new/choose
+[feat]: https://github.com/yancongya/bitwarden-vault-manager/issues/new/choose
 [llms]: https://github.com/yancongya/bitwarden-vault-manager/blob/main/public/llms.txt
 [license-shield]: https://img.shields.io/github/license/yancongya/bitwarden-vault-manager?style=flat-square
 [license-url]: https://github.com/yancongya/bitwarden-vault-manager/blob/main/LICENSE
