@@ -50,6 +50,7 @@ export function loadSession() {
       encKey: _b64ToU8(data.encKey),
       macKey: _b64ToU8(data.macKey),
       deviceIdentifier: data.deviceIdentifier || null,
+      savedAt: data.savedAt || null,
     };
   } catch {
     return null;

@@ -191,6 +191,16 @@ async function _requestPinAndGetSession() {
 
 async function _restoreFromSession(saved) {
 
+  // 检查 session 是否超过 25 天（Bitwarden refresh token 有效期约 30 天）
+  if (saved.savedAt) {
+    const ageMs = Date.now() - saved.savedAt;
+    const ageDays = ageMs / (1000 * 60 * 60 * 24);
+    if (ageDays > 25) {
+      console.warn(`[Session] Session is ${ageDays.toFixed(1)} days old, refresh token may be expired`);
+      // 不清除 session，让 sync 尝试刷新，如果失败再处理
+    }
+  }
+
   try {
     // Restore client with saved access token and device identifier
     if (!globalThis.crypto?.subtle) {
@@ -200,6 +210,7 @@ async function _restoreFromSession(saved) {
     client = new BitwardenClient(saved.serverUrl, saved.deviceIdentifier);
     client.accessToken = saved.accessToken;
     client.refreshToken = saved.refreshToken || null;
+    // 注意：这里要用 client.refreshToken 而不是 saved.refreshToken，因为刷新后会更新
     client.onTokenRefresh = () => saveSession(saved.serverUrl, client.accessToken, symmetricKey, client.deviceIdentifier, client.refreshToken);
 
     // Restore symmetric key
