@@ -10,6 +10,7 @@
 import { redact, isSensitive, digestSecret, strengthBucket } from '../core/security.js';
 import { sessionStatus, saveSession, loadSession, clearSession } from '../core/session.js';
 import { emit } from '../core/display.js';
+import { credentialItemName, normalizeAlias } from '../commands/credential.js';
 
 let pass = 0, fail = 0;
 
@@ -69,6 +70,13 @@ assert(typeof st.authenticated === 'boolean', 'sessionStatus returns boolean');
 
 // ── emit ──
 assert(typeof emit === 'function', 'emit is callable');
+
+// ── credential aliases ──
+assertEqual(normalizeAlias(' NAS.SSH '), 'nas.ssh', 'credential alias is normalized');
+assertEqual(credentialItemName('nas.ssh'), 'Agent Credential: nas.ssh', 'credential item name is stable');
+let rejectedAlias = false;
+try { normalizeAlias('../secret'); } catch { rejectedAlias = true; }
+assert(rejectedAlias, 'credential alias rejects path-like input');
 
 // ── summary ──
 console.log(`\n1..${pass + fail}`);

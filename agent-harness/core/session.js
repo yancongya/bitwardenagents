@@ -22,12 +22,16 @@ import path from 'node:path';
 const SESSION_DIR = process.env.BWVAULT_HOME || path.join(os.homedir(), '.bwvault');
 const SESSION_FILE = path.join(SESSION_DIR, 'session.json');
 const PIN_FILE = path.join(SESSION_DIR, 'pin.json');
+const API_KEY_FILE = path.join(SESSION_DIR, 'api-key.json');
 
 // Device identity survives logout and container replacement on the /data volume.
 export function getDeviceIdentifier() {
   ensureDir();
   const file = path.join(SESSION_DIR, 'device-id');
-  if (fs.existsSync(file)) return fs.readFileSync(file, 'utf8').trim();
+  if (fs.existsSync(file)) {
+    try { fs.chmodSync(file, 0o600); } catch {}
+    return fs.readFileSync(file, 'utf8').trim();
+  }
   const id = loadSession()?.deviceIdentifier || crypto.randomUUID();
   try { fs.writeFileSync(file, id, { flag: 'wx', mode: 0o600 }); }
   catch (error) { if (error.code !== 'EEXIST') throw error; }
@@ -80,6 +84,68 @@ export function hasPin() {
 export function clearPin() {
   if (fs.existsSync(PIN_FILE)) fs.unlinkSync(PIN_FILE);
   return true;
+}
+
+/** Persist API-key credentials so a PIN unlock can renew an expired session. */
+function derivePinKey(pin, salt) {
+  return crypto.scryptSync(String(pin), salt, 32, {
+    N: 1 << 15,
+    r: 8,
+    p: 1,
+    maxmem: 64 * 1024 * 1024,
+  });
+}
+
+export function saveApiKeyCredentials({ clientId, clientSecret, email, serverUrl }, pin) {
+  if (!pin) throw new Error('PIN required to persist API-key credentials securely.');
+  ensureDir();
+  const salt = crypto.randomBytes(16);
+  const iv = crypto.randomBytes(12);
+  const cipher = crypto.createCipheriv('aes-256-gcm', derivePinKey(pin, salt), iv);
+  const plaintext = JSON.stringify({ clientId, clientSecret, email, serverUrl });
+  const ciphertext = Buffer.concat([cipher.update(plaintext, 'utf8'), cipher.final()]);
+  const payload = {
+    version: 1,
+    kdf: 'scrypt',
+    cipher: 'aes-256-gcm',
+    salt: salt.toString('base64'),
+    iv: iv.toString('base64'),
+    tag: cipher.getAuthTag().toString('base64'),
+    ciphertext: ciphertext.toString('base64'),
+  };
+  const fd = fs.openSync(API_KEY_FILE, 'w', 0o600);
+  try { fs.writeFileSync(fd, JSON.stringify(payload)); }
+  finally { fs.closeSync(fd); }
+  try { fs.chmodSync(API_KEY_FILE, 0o600); } catch {}
+}
+
+export function loadApiKeyCredentials(pin) {
+  if (!fs.existsSync(API_KEY_FILE)) return null;
+  try {
+    const payload = JSON.parse(fs.readFileSync(API_KEY_FILE, 'utf8'));
+    // Legacy plaintext files are accepted only long enough to migrate after a
+    // successful PIN verification. Callers must never return their contents.
+    if (!payload.ciphertext) return pin ? payload : null;
+    if (!pin) return null;
+    const salt = Buffer.from(payload.salt, 'base64');
+    const iv = Buffer.from(payload.iv, 'base64');
+    const decipher = crypto.createDecipheriv('aes-256-gcm', derivePinKey(pin, salt), iv);
+    decipher.setAuthTag(Buffer.from(payload.tag, 'base64'));
+    const plaintext = Buffer.concat([
+      decipher.update(Buffer.from(payload.ciphertext, 'base64')),
+      decipher.final(),
+    ]).toString('utf8');
+    return JSON.parse(plaintext);
+  }
+  catch { return null; }
+}
+
+export function migrateApiKeyCredentials(pin) {
+  if (!fs.existsSync(API_KEY_FILE)) return null;
+  const payload = JSON.parse(fs.readFileSync(API_KEY_FILE, 'utf8'));
+  if (payload.ciphertext) return loadApiKeyCredentials(pin);
+  saveApiKeyCredentials(payload, pin);
+  return payload;
 }
 
 // --- helpers ---

@@ -36,7 +36,7 @@ exposing any plaintext secrets.
 
 ```bash
 # Session
-bwvault auth login --api-key --client-id <id> --client-secret <s> --email <e>
+BWVAULT_CLIENT_ID='<id>' BWVAULT_CLIENT_SECRET='<secret>' BWVAULT_PIN='<pin>' bwvault auth login --api-key --email <e>
 bwvault auth login --password --email <e>
 bwvault auth logout
 bwvault auth status
@@ -48,6 +48,10 @@ bwvault vault search <query>
 bwvault vault get --id <ID> [--reveal]
 bwvault vault folders
 bwvault vault export --output backup.enc
+
+# Credential storage by stable alias
+bwvault credential list [--json]
+printf '%s' "$SECRET" | bwvault credential set --alias nas.ssh --username tycon --url ssh://nas --apply
 
 # Analysis (read-only)
 bwvault analyze health
@@ -68,6 +72,10 @@ bwvault manage folders delete --id <ID> --apply
 --reveal   # show secrets (password, TOTP, keys)
 --server   # us | eu | <custom-url>
 ```
+
+Credential secrets are accepted only through stdin, a hidden prompt, or
+`BWVAULT_SECRET`. `credential list` never returns secret values, and
+`credential set` reports only whether the alias was created or updated.
 
 ## Key Behaviours for Agents
 

@@ -13,6 +13,7 @@
  */
 
 import { createClient, decryptSymmetricKey, decryptToString } from './bridge.js';
+import * as sessionStore from './session.js';
 import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
@@ -30,15 +31,20 @@ function loadCache() {
 function saveCache(data) {
   try {
     fs.mkdirSync(CACHE_DIR, { recursive: true, mode: 0o700 });
-    // Strip _original (large raw API objects) from cache
-    const light = {
-      ...data,
+    // Persist only Bitwarden's encrypted API response. Decrypted ciphers must
+    // never be written to disk, even when the cache file itself is mode 0600.
+    const encrypted = {
       savedAt: Date.now(),
-      ciphers: data.ciphers.map(c => { const { _original, ...rest } = c; return rest; }),
-      raw: undefined,
+      revisionHash: data.revisionHash,
+      raw: data.raw,
     };
-    fs.writeFileSync(CACHE_FILE, JSON.stringify(light), { mode: 0o600 });
+    fs.writeFileSync(CACHE_FILE, JSON.stringify(encrypted), { mode: 0o600 });
+    try { fs.chmodSync(CACHE_FILE, 0o600); } catch {}
   } catch { /* best-effort */ }
+}
+
+export function invalidateCache() {
+  try { if (fs.existsSync(CACHE_FILE)) fs.unlinkSync(CACHE_FILE); } catch {}
 }
 
 const TYPE_META = {
@@ -57,10 +63,26 @@ export function typeName(t) {
  * Restore an authenticated client from the saved session.
  * @throws when no session exists
  */
-export function clientFromSession(session) {
-  const client = createClient(session.serverUrl);
-  client.accessToken = session.accessToken;
-  return { client, symmetricKey: session.symmetricKey };
+export function clientFromSession(currentSession) {
+  const client = createClient(currentSession.serverUrl);
+  client.accessToken = currentSession.accessToken;
+  client.refreshToken = currentSession.refreshToken || null;
+  client.onTokenRefresh = () => {
+    currentSession.accessToken = client.accessToken;
+    currentSession.refreshToken = client.refreshToken || null;
+    sessionStore.saveSession(currentSession);
+  };
+  return { client, symmetricKey: currentSession.symmetricKey };
+}
+
+async function renewApiKeySession(current, client) {
+  const credentials = sessionStore.loadApiKeyCredentials(process.env.BWVAULT_PIN);
+  if (!credentials?.clientId || !credentials?.clientSecret) return false;
+  await client.loginWithApiKey(credentials.clientId, credentials.clientSecret);
+  current.accessToken = client.accessToken;
+  current.refreshToken = client.refreshToken || null;
+  sessionStore.saveSession(current);
+  return true;
 }
 
 /**
@@ -75,26 +97,26 @@ export function clientFromSession(session) {
 export async function syncVault(session, onProgress) {
   const { client, symmetricKey } = clientFromSession(session);
 
-  // Check local cache first — if valid (< 10 min old), skip API call entirely.
+  // Check encrypted local cache first — if valid (< 10 min old), skip API call.
   const cached = loadCache();
   const CACHE_MAX_AGE = 10 * 60 * 1000; // 10 minutes
-  if (cached && cached.savedAt && (Date.now() - cached.savedAt) < CACHE_MAX_AGE) {
-    if (onProgress) onProgress(cached.ciphers.length, cached.ciphers.length);
-    return cached;
-  }
+  let raw = cached?.raw && cached.savedAt && (Date.now() - cached.savedAt) < CACHE_MAX_AGE
+    ? cached.raw
+    : null;
 
-  // Cache expired or missing — fetch from server.
-  let raw;
-  try {
-    raw = await client.sync();
-  } catch (e) {
-    // If sync fails but we have a cache, use it
-    const cached = loadCache();
-    if (cached) {
-      if (onProgress) onProgress(cached.ciphers.length, cached.ciphers.length);
-      return cached;
+  if (!raw) {
+    try {
+      raw = await client.sync();
+    } catch (e) {
+      // Personal API-key tokens have no refresh token. Renew transparently
+      // from the persisted 0600 credential file, then retry once.
+      if (/Sync failed: 401/.test(e.message) && await renewApiKeySession(session, client)) {
+        raw = await client.sync();
+      }
+      // An expired encrypted cache is still safer than failing offline.
+      if (!raw && cached?.raw) raw = cached.raw;
+      else if (!raw) throw e;
     }
-    throw e;
   }
 
   // Check if vault actually changed (compare revision hash)
@@ -102,11 +124,6 @@ export async function syncVault(session, onProgress) {
     .createHash('sha256')
     .update(JSON.stringify(raw.Profile?.RevisionDate || '') + (raw.Ciphers || []).length)
     .digest('hex');
-
-  if (cached && cached.revisionHash === revisionHash) {
-    if (onProgress) onProgress(cached.ciphers.length, cached.ciphers.length);
-    return cached;
-  }
 
   // Full decrypt
   const folderMap = {};
@@ -130,7 +147,7 @@ export async function syncVault(session, onProgress) {
   const folders = Object.entries(folderMap).map(([id, name]) => ({ id, name }));
   const result = { ciphers, folders, raw, revisionHash };
 
-  // Save cache (best-effort)
+  // Save only the encrypted response (best-effort).
   saveCache(result);
 
   return result;
@@ -151,7 +168,11 @@ export async function decryptCipher(c, key, folderMap = {}) {
   };
 
   const login = c.Login || {};
-  const uris = (login.Uris || []).map((u) => u.Uri).filter(Boolean);
+  const uris = [];
+  for (const uri of login.Uris || []) {
+    const value = await d(uri.Uri);
+    if (value) uris.push(value);
+  }
 
   const card = c.Card || {};
   const identity = c.Identity || {};

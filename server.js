@@ -10,12 +10,55 @@ import path from 'node:path';
 import crypto from 'node:crypto';
 import { execSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
+import { migrateApiKeyCredentials } from './agent-harness/core/session.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const DIST = path.join(__dirname, 'dist');
 const PORT = parseInt(process.env.PORT || '3000', 10);
 const SESSION_DIR = process.env.BWVAULT_HOME || path.join(__dirname, 'data');
 const SESSION_FILE = path.join(SESSION_DIR, 'session.json');
+const API_KEY_FILE = path.join(SESSION_DIR, 'api-key.json');
+const SYNC_CACHE_FILE = path.join(SESSION_DIR, 'sync-cache.json');
+const SYNC_CACHE_MAX_AGE = 10 * 60 * 1000;
+
+let unlockedApiKeyCredentials = null;
+
+async function renewApiKeySession(session, pin) {
+  if (!fs.existsSync(API_KEY_FILE)) return session;
+  const credentials = unlockedApiKeyCredentials || migrateApiKeyCredentials(pin);
+  if (!credentials) throw new Error('Unable to unlock saved API credentials.');
+  unlockedApiKeyCredentials = credentials;
+  const base = (credentials.serverUrl || session.serverUrl || 'https://vault.bitwarden.com').replace(/\/+$/, '');
+  const identityUrl = base === 'https://vault.bitwarden.com'
+    ? 'https://identity.bitwarden.com'
+    : base === 'https://vault.bitwarden.eu'
+      ? 'https://identity.bitwarden.eu'
+      : `${base}/identity`;
+  const tokenResponse = await fetch(`${identityUrl}/connect/token`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/x-www-form-urlencoded',
+      'Bitwarden-Client-Version': '2026.8.1',
+      'Bitwarden-Client-Name': 'web',
+    },
+    body: new URLSearchParams({
+      grant_type: 'client_credentials',
+      client_id: credentials.clientId,
+      client_secret: credentials.clientSecret,
+      scope: 'api',
+      deviceType: '9',
+      deviceIdentifier: session.deviceIdentifier,
+      deviceName: 'Bitwarden Vault Manager',
+    }),
+  });
+  if (!tokenResponse.ok) throw new Error(`Bitwarden session renewal failed: ${tokenResponse.status}`);
+  const token = await tokenResponse.json();
+  session.accessToken = token.access_token;
+  session.refreshToken = token.refresh_token || null;
+  session.savedAt = Date.now();
+  fs.writeFileSync(SESSION_FILE, JSON.stringify(session, null, 2), { mode: 0o600 });
+  return session;
+}
 
 // Bitwarden proxy targets (same as vite.config.js)
 const PROXIES = {
@@ -44,6 +87,27 @@ function proxyRequest(proxyPath, req, res) {
   const targetPath = req.url.replace(conf.strip, '') || '/';
   const url = new URL(targetPath, conf.target);
 
+  const isVaultSync = proxyPath.endsWith('-api') && req.method === 'GET' && url.pathname === '/sync';
+  let cacheAuthorized = false;
+  try {
+    const currentSession = JSON.parse(fs.readFileSync(SESSION_FILE, 'utf8'));
+    cacheAuthorized = req.headers.authorization === `Bearer ${currentSession.accessToken}`;
+  } catch {}
+  if (isVaultSync && cacheAuthorized && fs.existsSync(SYNC_CACHE_FILE)) {
+    try {
+      const stat = fs.statSync(SYNC_CACHE_FILE);
+      if (Date.now() - stat.mtimeMs < SYNC_CACHE_MAX_AGE) {
+        res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8', 'X-BWV-Cached': '1' });
+        fs.createReadStream(SYNC_CACHE_FILE).pipe(res);
+        return;
+      }
+    } catch { /* Fetch a fresh copy below. */ }
+  }
+
+  if (proxyPath.endsWith('-api') && !['GET', 'HEAD'].includes(req.method)) {
+    try { fs.unlinkSync(SYNC_CACHE_FILE); } catch {}
+  }
+
   const headers = { ...req.headers, host: url.host };
   delete headers['x-forwarded-for'];
   delete headers['x-real-ip'];
@@ -53,6 +117,19 @@ function proxyRequest(proxyPath, req, res) {
     headers,
     timeout: 30000,
   }, (proxyRes) => {
+    if (isVaultSync && proxyRes.statusCode === 200) {
+      const chunks = [];
+      proxyRes.on('data', chunk => { chunks.push(chunk); res.write(chunk); });
+      proxyRes.on('end', () => {
+        res.end();
+        try {
+          fs.writeFileSync(SYNC_CACHE_FILE, Buffer.concat(chunks), { mode: 0o600 });
+          fs.chmodSync(SYNC_CACHE_FILE, 0o600);
+        } catch {}
+      });
+      res.writeHead(proxyRes.statusCode, proxyRes.headers);
+      return;
+    }
     res.writeHead(proxyRes.statusCode, proxyRes.headers);
     proxyRes.pipe(res);
   });
@@ -74,7 +151,7 @@ const server = http.createServer((req, res) => {
   if (req.method === 'POST' && urlObj.pathname === '/api/session/verify') {
     let body = '';
     req.on('data', (chunk) => (body += chunk));
-    req.on('end', () => {
+    req.on('end', async () => {
       try {
         const { pin } = JSON.parse(body);
         const pinFile = path.join(path.dirname(SESSION_FILE), 'pin.json');
@@ -93,7 +170,10 @@ const server = http.createServer((req, res) => {
         }
         // PIN correct — return session
         if (fs.existsSync(SESSION_FILE)) {
-          const session = JSON.parse(fs.readFileSync(SESSION_FILE, 'utf8'));
+          let session = JSON.parse(fs.readFileSync(SESSION_FILE, 'utf8'));
+          // API-key access tokens do not include refresh tokens. A valid PIN
+          // authorizes a transparent re-login using credentials in /data.
+          session = await renewApiKeySession(session, pin);
           res.writeHead(200, { 'Content-Type': 'application/json' });
           res.end(JSON.stringify({ ok: true, session }));
         } else {
@@ -112,7 +192,11 @@ const server = http.createServer((req, res) => {
   if (req.method === 'GET' && urlObj.pathname === '/api/pin') {
     const pinFile = path.join(path.dirname(SESSION_FILE), 'pin.json');
     res.writeHead(200, { 'Content-Type': 'application/json' });
-    res.end(JSON.stringify({ ok: true, pinSet: fs.existsSync(pinFile) }));
+    res.end(JSON.stringify({
+      ok: true,
+      pinSet: fs.existsSync(pinFile),
+      unlocked: Boolean(unlockedApiKeyCredentials),
+    }));
     return;
   }
 
@@ -138,6 +222,12 @@ const server = http.createServer((req, res) => {
   // GET /api/session — load session for Web UI restore
   if (req.method === 'GET' && urlObj.pathname === '/api/session') {
     try {
+      const pinFile = path.join(path.dirname(SESSION_FILE), 'pin.json');
+      if (fs.existsSync(pinFile) && !unlockedApiKeyCredentials) {
+        res.writeHead(401, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ ok: false, error: 'PIN unlock required.' }));
+        return;
+      }
       if (fs.existsSync(SESSION_FILE)) {
         const data = JSON.parse(fs.readFileSync(SESSION_FILE, 'utf8'));
         res.writeHead(200, { 'Content-Type': 'application/json' });

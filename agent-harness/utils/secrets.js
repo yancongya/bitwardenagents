@@ -87,6 +87,15 @@ export async function getMasterPassword({
   return null;
 }
 
+/** Obtain a generic credential secret without accepting it on argv. */
+export async function getCredentialSecret({
+  envVar = 'BWVAULT_SECRET',
+  allowPrompt = true,
+  prompt = 'Credential secret: ',
+} = {}) {
+  return getMasterPassword({ envVar, allowPrompt, prompt });
+}
+
 /**
  * Read a one-time code (new-device verification / 2FA) from TTY or stdin.
  */

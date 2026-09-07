@@ -104,6 +104,9 @@ async function hkdfExpand(prk, info, length) {
  * According to Bitwarden security whitepaper:
  * - Payload: Master Key
  * - Salt: Master Password
+ *
+ * The client always uses SHA-256 here. The server-side PRF change (SHA-256→SHA-512)
+ * only affects how the server stores the hash internally, not what the client sends.
  */
 export async function hashPassword(password, masterKey) {
   const passwordBytes = new TextEncoder().encode(password);

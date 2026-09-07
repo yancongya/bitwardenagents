@@ -95,7 +95,7 @@ export async function loginApiKey(opts) {
   if (!opts.json) out.info('Authenticating with API key…');
   const result = await client.loginWithApiKey(clientId, clientSecret);
 
-  return finishLogin({
+  const login = await finishLogin({
     client,
     email,
     password,
@@ -105,6 +105,9 @@ export async function loginApiKey(opts) {
     serverUrl,
     json: opts.json,
   });
+  const pin = opts.pin || process.env.BWVAULT_PIN;
+  if (pin) session.saveApiKeyCredentials({ clientId, clientSecret, email, serverUrl }, pin);
+  return login;
 }
 
 /** Master-password (official) login, with new-device verification support. */

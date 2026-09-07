@@ -79,41 +79,55 @@ function renderCurrentView() {
 // (restore orchestration stays here — deeply coupled to app state)
 
 async function tryRestoreSession() {
-  // Try local first
-  let saved = loadSession();
-  if (saved && await _restoreFromSession(saved)) return true;
-
-  // No local session — check if server has one (Docker / new browser)
+  // In Docker, the server-side PIN gate is authoritative. Check it before
+  // browser storage so a stale local token can never flash the login form.
   try {
     const pinCheck = await fetch('/api/pin').then(r => r.json()).catch(() => ({ pinSet: false }));
 
     if (pinCheck.pinSet) {
-      // Server has a session protected by PIN — show PIN dialog
-      saved = await _requestPinAndGetSession();
-      if (saved) return await _restoreFromSession(saved);
+      let saved;
+      if (pinCheck.unlocked) {
+        saved = await _getServerSession();
+      } else {
+        saved = await _requestPinAndGetSession();
+      }
+      if (saved) {
+        const restored = await _restoreFromSession(saved);
+        const overlay = document.getElementById('pin-overlay');
+        if (restored) overlay?.remove();
+        else overlay?.remove();
+        return restored;
+      }
       return false;
     }
 
+    // Vite/no-PIN mode may still have a valid browser-local session.
+    let saved = loadSession();
+    if (saved && await _restoreFromSession(saved)) return true;
+
     // No PIN set, no local session — try unauthenticated session fetch (legacy)
-    const resp = await fetch('/api/session');
-    const data = await resp.json();
-    if (data.ok && data.session) {
-      saved = {
-        serverUrl: data.session.serverUrl || '',
-        accessToken: data.session.accessToken,
-        refreshToken: data.session.refreshToken || null,
-        encKey: _b64ToU8(data.session.encKey),
-        macKey: _b64ToU8(data.session.macKey),
-        deviceIdentifier: data.session.deviceIdentifier || null,
-      };
-      sessionStorage.setItem(SESSION_KEY, JSON.stringify(data.session));
-      localStorage.setItem(SESSION_KEY, JSON.stringify(data.session));
-      return await _restoreFromSession(saved);
-    }
+    saved = await _getServerSession();
+    if (saved) return await _restoreFromSession(saved);
   } catch {
     // server session endpoint unavailable (e.g. Vite dev mode), ignore
   }
   return false;
+}
+
+async function _getServerSession() {
+  const resp = await fetch('/api/session');
+  const data = await resp.json();
+  if (!data.ok || !data.session) return null;
+  sessionStorage.setItem(SESSION_KEY, JSON.stringify(data.session));
+  localStorage.setItem(SESSION_KEY, JSON.stringify(data.session));
+  return {
+    serverUrl: data.session.serverUrl || '',
+    accessToken: data.session.accessToken,
+    refreshToken: data.session.refreshToken || null,
+    encKey: _b64ToU8(data.session.encKey),
+    macKey: _b64ToU8(data.session.macKey),
+    deviceIdentifier: data.session.deviceIdentifier || null,
+  };
 }
 
 async function _requestPinAndGetSession() {
@@ -122,10 +136,8 @@ async function _requestPinAndGetSession() {
     const overlay = document.createElement('div');
     overlay.id = 'pin-overlay';
     overlay.innerHTML = `
-      <div style="position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.6);
-        display:flex;align-items:center;justify-content:center;z-index:10000">
-        <div style="background:var(--surface,#1e1e2e);border-radius:12px;padding:32px;
-          min-width:320px;text-align:center;box-shadow:0 8px 32px rgba(0,0,0,0.4)">
+      <div class="pin-backdrop">
+        <div class="pin-panel" aria-busy="false">
           <h3 style="margin:0 0 16px;color:var(--text,#e0e0e0)">访问验证</h3>
           <p style="margin:0 0 16px;color:var(--text-secondary,#999);font-size:14px">
             请输入 Web 访问 PIN</p>
@@ -144,6 +156,7 @@ async function _requestPinAndGetSession() {
     const input = document.getElementById('pin-input');
     const btn = document.getElementById('pin-submit');
     const err = document.getElementById('pin-error');
+    const panel = overlay.querySelector('.pin-panel');
     input.focus();
 
     async function submit() {
@@ -151,6 +164,10 @@ async function _requestPinAndGetSession() {
       if (!pin) { err.textContent = '请输入 PIN'; return; }
       btn.disabled = true;
       btn.textContent = '验证中...';
+      input.disabled = true;
+      panel.setAttribute('aria-busy', 'true');
+      err.textContent = '正在验证并恢复保险库…';
+      err.style.color = 'var(--text-secondary, #999)';
       try {
         const resp = await fetch('/api/session/verify', {
           method: 'POST',
@@ -159,7 +176,8 @@ async function _requestPinAndGetSession() {
         });
         const data = await resp.json();
         if (data.ok && data.session) {
-          overlay.remove();
+          btn.textContent = '正在恢复…';
+          err.textContent = '验证成功，正在恢复保险库…';
           // Populate browser storage
           sessionStorage.setItem(SESSION_KEY, JSON.stringify(data.session));
           localStorage.setItem(SESSION_KEY, JSON.stringify(data.session));
@@ -173,15 +191,21 @@ async function _requestPinAndGetSession() {
           });
         } else {
           err.textContent = data.error || 'PIN 错误';
+          err.style.color = '#f44336';
           input.value = '';
+          input.disabled = false;
           input.focus();
           btn.disabled = false;
           btn.textContent = '确认';
+          panel.setAttribute('aria-busy', 'false');
         }
       } catch (e) {
         err.textContent = '网络错误';
+        err.style.color = '#f44336';
+        input.disabled = false;
         btn.disabled = false;
         btn.textContent = '确认';
+        panel.setAttribute('aria-busy', 'false');
       }
     }
     btn.addEventListener('click', submit);
@@ -355,7 +379,11 @@ document.addEventListener('DOMContentLoaded', async () => {
   });
 
   // Try to restore previous session (avoid re-login)
-  await tryRestoreSession();
+  const restored = await tryRestoreSession();
+  document.body.classList.remove('auth-pending');
+  if (!restored && !document.getElementById('pin-overlay')) {
+    $('#login-view').style.display = '';
+  }
 });
 
 function updateControlButtons() {
@@ -701,6 +729,7 @@ function setLoginState(state, message) {
 // DASHBOARD ENTRY
 // ========================
 function enterDashboard() {
+  document.body.classList.remove('auth-pending');
   // ── Idempotency guard: if dashboard already showing, don't re-init ──
   const dashEl = $('#dashboard-view');
   if (dashEl.style.display === 'block') {

@@ -25,6 +25,7 @@ import * as auth from '../commands/auth.js';
 import * as vaultCmd from '../commands/vault.js';
 import * as analyzeCmd from '../commands/analyze.js';
 import * as manageCmd from '../commands/manage.js';
+import * as credentialCmd from '../commands/credential.js';
 import { repl } from '../utils/repl.js';
 
 const VERSION = '1.0.0';
@@ -58,6 +59,10 @@ ${out.color('GROUPS', 'bold')}
     trash     list | restore | purge  (purge is irreversible)
     folders   create | rename | delete
 
+  ${out.color('credential', 'green')} Store service credentials by stable alias
+    list      List aliases and metadata (never returns secrets)
+    set       Create or update an alias (secret via stdin/prompt/env)
+
 ${out.color('GLOBAL OPTIONS', 'bold')}
   --json            Machine-readable output on stdout
   --reveal          Show secret values (passwords/TOTP/keys). Use deliberately.
@@ -74,6 +79,7 @@ ${out.color('EXAMPLES', 'bold')}
   bwvault vault list --json | jq '.items[].name'
   bwvault analyze health
   bwvault manage dedup --dry-run
+  printf '%s' "$SECRET" | bwvault credential set --alias nas.ssh --username tycon --url ssh://nas --apply
 `;
 
 /**
@@ -122,6 +128,8 @@ async function main() {
       return dispatchAnalyze(rest, ctx);
     case 'manage':
       return dispatchManage(rest, ctx);
+    case 'credential':
+      return dispatchCredential(rest, ctx);
     default:
       process.stdout.write(HELP);
       if (group) {
@@ -129,6 +137,28 @@ async function main() {
         return 1;
       }
       return 0;
+  }
+}
+
+async function dispatchCredential(args, ctx) {
+  const [cmd, ...rest] = args;
+  const opts = parseOptions(rest, {
+    alias: 'string',
+    username: 'string',
+    url: 'string',
+    apply: 'boolean',
+  });
+  const common = { json: ctx.json, ...opts };
+
+  switch (cmd) {
+    case 'list':
+      return credentialCmd.list(common);
+    case 'set':
+      return credentialCmd.set(common);
+    default:
+      out.fail(`Unknown credential command: ${cmd}`);
+      process.stdout.write('Available: list, set\n');
+      return 1;
   }
 }
 
@@ -143,7 +173,7 @@ async function dispatchAuth(args, ctx) {
     'client-id': 'string',
     'client-secret': 'string',
     email: 'string',
-    password: 'string',
+    password: 'boolean',
     server: 'string',
     'api-key': 'boolean',
     'set-pin': 'string',
@@ -152,29 +182,33 @@ async function dispatchAuth(args, ctx) {
 
   switch (cmd) {
     case 'login': {
+      const loginPin = opts['set-pin'] || process.env.BWVAULT_PIN;
       // Map kebab-case CLI flags to the camelCase names the auth module uses.
       const mapped = {
         ...common,
-        clientId: opts['client-id'],
-        clientSecret: opts['client-secret'],
+        clientId: opts['client-id'] || process.env.BWVAULT_CLIENT_ID,
+        clientSecret: opts['client-secret'] || process.env.BWVAULT_CLIENT_SECRET,
         email: opts.email,
-        password: opts.password,
+        // --password selects this strategy. The secret itself comes from
+        // stdin, BWVAULT_PASSWORD, or the interactive prompt.
+        password: undefined,
+        pin: loginPin,
       };
       if (opts['api-key']) {
         const result = await auth.loginApiKey(mapped);
         // Set Web access PIN after successful login if requested.
-        if (opts['set-pin'] && result.ok) {
+        if (loginPin && result.ok) {
           const { setPin } = await import('../core/session.js');
-          await setPin(opts['set-pin']);
+          await setPin(loginPin);
           result.pinSet = true;
         }
         return result;
       }
       // Default to password login when --api-key is absent.
       const result = await auth.loginPassword(mapped);
-      if (opts['set-pin'] && result.ok) {
+      if (loginPin && result.ok) {
         const { setPin } = await import('../core/session.js');
-        await setPin(opts['set-pin']);
+        await setPin(loginPin);
         result.pinSet = true;
       }
       return result;
