@@ -235,9 +235,9 @@ async function _restoreFromSession(saved) {
 
     // Distinguish transient errors from real auth failures.
     // Transient: network timeout, DNS failure, CORS — retry later, don't nuke session.
-    // Auth failure: 401/403 — token expired, need re-login.
+    // Auth failure: 401/403/400 (refresh token expired) — need re-login.
     const isTransient = /network|timeout|fetch|Failed to fetch|ECONNREFUSED|502|503|504/i.test(msg);
-    const isAuth = /401|403|unauthorized|invalid_token/i.test(msg);
+    const isAuth = /401|403|400|unauthorized|invalid_token|Session renewal failed/i.test(msg);
 
     if (isTransient) {
       // Keep session, show retry option.
@@ -252,7 +252,12 @@ async function _restoreFromSession(saved) {
       clearSession();
       client = null;
       symmetricKey = null;
-      setLoginState('error', '保存的 Bitwarden 登录已过期，无法自动续期。请重新登录后再使用 PIN 解锁。');
+      // 提供更明确的错误信息
+      const isRefreshFailed = /Session renewal failed|refresh_token/i.test(msg);
+      const errorMsg = isRefreshFailed
+        ? '登录会话已过期（refresh token 失效），需要重新登录。'
+        : '保存的 Bitwarden 登录已过期，需要重新登录。';
+      setLoginState('error', errorMsg);
       return false;
     }
 
