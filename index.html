@@ -7,14 +7,14 @@
   <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
   <meta name="description" content="Open-source Bitwarden vault management dashboard with client-side encryption. Smart deduplication with AB merge strategy, vault health scoring, URL dead-link detection, passkey-aware merge, batch operations, and full i18n support. All crypto runs in your browser — zero plaintext reaches any server." />
   <meta name="keywords" content="Bitwarden, password manager, vault manager, deduplication, password health, client-side encryption, open source, PBKDF2, Argon2, AES-256, passkey, WebAuthn, FIDO2" />
-  <link rel="canonical" href="https://bitwarden.xuebz.com/" />
+  <link rel="canonical" href="https://bitwardenagents.itycon.cn/" />
   <meta name="robots" content="index, follow" />
 
   <!-- Open Graph -->
   <meta property="og:type" content="website" />
   <meta property="og:title" content="Bitwarden Vault Manager — Client-Side Encrypted Password Dashboard" />
   <meta property="og:description" content="Open-source Bitwarden vault management: smart deduplication, health scoring, URL dead-link detection, passkey-aware merge. All encryption in-browser." />
-  <meta property="og:url" content="https://bitwarden.xuebz.com/" />
+  <meta property="og:url" content="https://bitwardenagents.itycon.cn/" />
   <meta property="og:site_name" content="Bitwarden Vault Manager" />
 
   <!-- Twitter Card -->
@@ -28,7 +28,7 @@
     "@context": "https://schema.org",
     "@type": "SoftwareApplication",
     "name": "Bitwarden Vault Manager",
-    "url": "https://bitwarden.xuebz.com/",
+    "url": "https://bitwardenagents.itycon.cn/",
     "description": "Open-source, client-side encrypted Bitwarden vault management dashboard featuring smart deduplication with AB merge strategy, vault health scoring, URL dead-link detection, passkey-aware merge, and full bilingual support.",
     "applicationCategory": "SecurityApplication",
     "operatingSystem": "Web Browser",
@@ -40,10 +40,10 @@
     "author": {
       "@type": "Person",
       "name": "BigFishMarquis",
-      "url": "https://github.com/perfhelf"
+      "url": "https://github.com/yancongya"
     },
     "license": "https://opensource.org/licenses/MIT",
-    "codeRepository": "https://github.com/perfhelf/bitwarden-vault-manager",
+    "codeRepository": "https://github.com/yancongya/bitwarden-vault-manager",
     "featureList": [
       "Client-side AES-256-CBC encryption with HMAC-SHA256 verification",
       "PBKDF2 and Argon2id key derivation support",
@@ -59,15 +59,19 @@
       "Folder management: create, rename, delete, batch move",
       "Demo mode for exploring without a Bitwarden account"
     ],
-    "sameAs": ["https://github.com/perfhelf/bitwarden-vault-manager"]
+    "sameAs": ["https://github.com/yancongya/bitwarden-vault-manager"]
   }
   </script>
 
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 </head>
-<body>
+<body class="auth-pending">
   <div id="app">
+    <div id="auth-bootstrap" role="status" aria-live="polite">
+      <div class="auth-bootstrap-mark" aria-hidden="true"></div>
+      <p>正在检查会话…</p>
+    </div>
     <!-- ====== LOGIN VIEW ====== -->
     <div id="login-view" class="view">
       <!-- Global Controls (login page) -->
@@ -80,21 +84,29 @@
         </button>
       </div>
 
-      <div class="login-container">
+      <main class="login-container">
         <div class="login-header">
           <div class="logo">
             <svg viewBox="0 0 32 32" width="48" height="48" fill="none">
-              <rect width="32" height="32" rx="8" fill="url(#grad)"/>
-              <path d="M16 6 L24 10 L24 18 C24 22.42 20.42 26 16 26 C11.58 26 8 22.42 8 18 L8 10 Z" fill="rgba(255,255,255,0.2)" stroke="white" stroke-width="1.5"/>
+              <rect width="32" height="32" rx="7" fill="#3b82f6"/>
+              <path d="M16 6 L24 10 L24 18 C24 22.42 20.42 26 16 26 C11.58 26 8 22.42 8 18 L8 10 Z" fill="none" stroke="white" stroke-width="1.5"/>
               <path d="M13 15 L15 17 L19 13" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-              <defs><linearGradient id="grad" x1="0" y1="0" x2="32" y2="32"><stop stop-color="#175DDC"/><stop offset="1" stop-color="#6c4bef"/></linearGradient></defs>
             </svg>
           </div>
-          <h1>Bitwarden Vault Manager</h1>
+          <div class="login-product-name">Vault Manager</div>
+          <h1>连接你的 Bitwarden 密码库</h1>
           <p class="subtitle" data-i18n="login.subtitle">安全连接你的保险库 · 智能去重 · 批量管理 · 健康分析</p>
+          <div class="login-assurance" aria-label="安全说明">
+            <div><span data-icon="lock" data-icon-size="17" aria-hidden="true"></span><span>主密码只在此设备处理</span></div>
+            <div><span data-icon="shield" data-icon-size="17" aria-hidden="true"></span><span>服务器不会保存明文凭证</span></div>
+          </div>
         </div>
 
-        <form id="login-form" autocomplete="off">
+        <form id="login-form" autocomplete="on">
+          <div class="login-form-heading">
+            <span>身份验证</span>
+            <small>选择一种登录方式</small>
+          </div>
           <div class="form-group">
             <label for="server-url" data-i18n="login.server">服务器</label>
             <select id="server-url">
@@ -164,7 +176,7 @@
             </div>
           </div>
 
-          <div id="login-status" class="login-status"></div>
+          <div id="login-status" class="login-status" role="status" aria-live="polite"></div>
 
           <button type="submit" id="login-btn" class="btn-primary" data-i18n="login.btn">登录并分析</button>
           <button type="button" id="demo-btn" class="btn-demo" data-i18n="login.demo">点击进入演示页面</button>
@@ -178,10 +190,10 @@
 
           <div class="open-source-note">
             <span data-i18n="login.opensource">🔓 本项目已开源，请放心使用</span>
-            <a href="https://github.com/perfhelf/bitwarden-vault-manager" target="_blank" rel="noopener noreferrer" data-i18n="login.opensource.link">查看源码</a>
+            <a href="https://github.com/yancongya/bitwarden-vault-manager" target="_blank" rel="noopener noreferrer" data-i18n="login.opensource.link">查看源码</a>
           </div>
         </form>
-      </div>
+      </main>
     </div>
 
     <!-- ====== MAIN DASHBOARD ====== -->
@@ -444,7 +456,7 @@
     <div style="max-width:800px;margin:2rem auto;padding:1.5rem;font-family:Inter,sans-serif;line-height:1.8;color:#e0e0e0;background:#0a0a0f;">
       <h1>🔐 Bitwarden Vault Manager</h1>
       <p><strong>Open-source, client-side encrypted Bitwarden vault management dashboard.</strong> All cryptographic operations — PBKDF2/Argon2id key derivation, HKDF-Expand (RFC 5869), AES-256-CBC encrypt/decrypt with HMAC-SHA256 verification — execute entirely in your browser. Zero plaintext data ever reaches any server.</p>
-      <p><a href="https://bitwarden.xuebz.com/">Live Demo</a> | <a href="https://github.com/perfhelf/bitwarden-vault-manager">GitHub Source Code (MIT License)</a></p>
+      <p><a href="https://bitwardenagents.itycon.cn/">Live Demo</a> | <a href="https://github.com/yancongya/bitwarden-vault-manager">GitHub Source Code (MIT License)</a></p>
 
       <h2>🔍 Smart Deduplication Engine</h2>
       <p>766-line Fusion Strategy engine that detects exact duplicates (URI + username + password triple match) and same-site duplicates (shared registered domain with eTLD+1 normalization across 30+ country-code TLDs). Deep identity comparison covers ALL fields: name, TOTP, notes, URIs, custom fields, passkeys (Fido2Credentials), favorite status, and re-prompt settings.</p>
@@ -480,7 +492,7 @@
       <p>Full Chinese (中文) and English support with 375+ translation keys. Browser language auto-detection with manual toggle. Covers all UI surfaces: login, dashboard, duplicates, health, search, batch actions, detail drawer, edit form, trash, merge progress, credential file, and toast notifications.</p>
 
       <h2>🚀 Technology</h2>
-      <p>Pure HTML + CSS + JavaScript (zero framework dependencies). Built with Vite. Deployed on Cloudflare Pages with Pages Functions proxy to Bitwarden official API (US + EU regions). MIT licensed. <a href="https://github.com/perfhelf/bitwarden-vault-manager">View source code on GitHub</a>.</p>
+      <p>Pure HTML + CSS + JavaScript (zero framework dependencies). Built with Vite. Deployed on Cloudflare Pages with Pages Functions proxy to Bitwarden official API (US + EU regions). MIT licensed. <a href="https://github.com/yancongya/bitwarden-vault-manager">View source code on GitHub</a>.</p>
     </div>
   </noscript>
 

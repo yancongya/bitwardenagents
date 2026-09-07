@@ -45,3 +45,6 @@ auto-test.py
 test-with-real-password.py
 __pycache__/
 *.pyc
+
+# Browser automation artifacts
+.playwright-cli/

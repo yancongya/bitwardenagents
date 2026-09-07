@@ -2,7 +2,7 @@
 > Open-source, client-side encrypted Bitwarden vault management dashboard. All cryptographic operations (PBKDF2/Argon2 key derivation, HKDF stretch, AES-256-CBC encrypt/decrypt) execute entirely in the browser — zero plaintext data ever reaches any server.
 
 ## Live Demo
-- URL: https://bitwarden.xuebz.com/
+- URL: https://bitwardenagents.itycon.cn/
 - Demo Mode: Click "Demo Mode" button on login page to explore all features without a Bitwarden account
 - Languages: Chinese (中文) and English, auto-detected by browser with manual toggle
 
@@ -87,10 +87,10 @@ The health engine scores your vault 0–100 and flags:
 5. Session data stored in sessionStorage only — cleared when tab closes
 6. No server-side storage, no database, no analytics, no tracking
 7. Cloudflare Pages Functions are used purely as a CORS proxy; no request body inspection or logging
-8. Full source code available at: https://github.com/perfhelf/bitwarden-vault-manager
+8. Full source code available at: https://github.com/yancongya/bitwarden-vault-manager
 
 ## Source Code
-- Repository: https://github.com/perfhelf/bitwarden-vault-manager
+- Repository: https://github.com/yancongya/bitwarden-vault-manager
 - License: MIT
 - Key Files:
   - `src/app.js` — Main application logic, URL dead-link detection, optimistic hot update, UI rendering
