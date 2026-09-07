@@ -1,7 +1,7 @@
 # BWVAULT — Agent Harness SOP
 
 ## Software
-**Bitwarden Vault Manager** — `perfhelf/bitwarden-vault-manager`
+**Bitwardenagents** — `yancongya/bitwardenagents`
 
 ## Source
 - `src/` — browser crypto engine (PBKDF2/Argon2, AES-CBC, dedup, health)

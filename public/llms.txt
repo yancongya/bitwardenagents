@@ -87,10 +87,10 @@ The health engine scores your vault 0–100 and flags:
 5. Session data stored in sessionStorage only — cleared when tab closes
 6. No server-side storage, no database, no analytics, no tracking
 7. Cloudflare Pages Functions are used purely as a CORS proxy; no request body inspection or logging
-8. Full source code available at: https://github.com/yancongya/bitwarden-vault-manager
+8. Full source code available at: https://github.com/yancongya/bitwardenagents
 
 ## Source Code
-- Repository: https://github.com/yancongya/bitwarden-vault-manager
+- Repository: https://github.com/yancongya/bitwardenagents
 - License: MIT
 - Key Files:
   - `src/app.js` — Main application logic, URL dead-link detection, optimistic hot update, UI rendering

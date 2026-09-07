@@ -168,8 +168,8 @@ Bitwardenagents 是一个**面向 Bitwarden 用户的开源扩展工具**，两�
 ### 本地开发
 
 ```bash
-git clone https://github.com/yancongya/bitwarden-vault-manager.git
-cd bitwarden-vault-manager
+git clone https://github.com/yancongya/bitwardenagents.git
+cd bitwardenagents
 npm install
 npm run dev   # Vite 开发服务器，http://localhost:5173
 ```
@@ -250,7 +250,7 @@ node agent-harness/bin/bwvault.js
 ## 架构与安全模型
 
 ```
-bitwarden-vault-manager/
+bitwardenagents/
 ├── index.html               # 单页入口（含 OG / Twitter / JSON-LD）
 ├── server.js                # 生产服务器：静态资源 + Bitwarden API 代理 + HTTPS 自签
 ├── src/                     # Web 仪表板（纯 HTML/CSS/JS，无框架）
@@ -480,13 +480,13 @@ A：`bw` 是官方通用 CLI；`bwvault` 专注**管理**任务——去重、�
 <!-- 链接变量 -->
 [demo]: https://bitwardenagents.itycon.cn/
 [demo-shield]: https://img.shields.io/badge/Live-Demo-brightgreen?style=flat-square
-[bug]: https://github.com/yancongya/bitwarden-vault-manager/issues/new/choose
-[feat]: https://github.com/yancongya/bitwarden-vault-manager/issues/new/choose
-[llms]: https://github.com/yancongya/bitwarden-vault-manager/blob/main/public/llms.txt
-[license-shield]: https://img.shields.io/github/license/yancongya/bitwarden-vault-manager?style=flat-square
-[license-url]: https://github.com/yancongya/bitwarden-vault-manager/blob/main/LICENSE
+[bug]: https://github.com/yancongya/bitwardenagents/issues/new?labels=bug
+[feat]: https://github.com/yancongya/bitwardenagents/issues/new?labels=enhancement
+[llms]: https://github.com/yancongya/bitwardenagents/blob/main/public/llms.txt
+[license-shield]: https://img.shields.io/github/license/yancongya/bitwardenagents?style=flat-square
+[license-url]: https://github.com/yancongya/bitwardenagents/blob/main/LICENSE
 [platforms-shield]: https://img.shields.io/badge/Web%20%C2%B7%20Node%2020%2B%20%C2%B7%20Docker-blue?style=flat-square
-[platforms-url]: https://github.com/yancongya/bitwarden-vault-manager
+[platforms-url]: https://github.com/yancongya/bitwardenagents
 [node-shield]: https://img.shields.io/badge/Node-%E2%89%A520-339933?style=flat-square&logo=node.js&logoColor=white
 [node-url]: https://nodejs.org/
 [docker-shield]: https://img.shields.io/badge/Docker-supported-2496ED?style=flat-square&logo=docker&logoColor=white
