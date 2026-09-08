@@ -17,6 +17,47 @@
     return node;
   }
 
+  /* ---------------- one-shot SVG page intro ---------------- */
+
+  const pageIntro = document.querySelector('#page-intro');
+  const pageIntroLogo = document.querySelector('#page-intro-logo');
+  let introRun = 0;
+
+  function replayPageIntro() {
+    if (!pageIntro || !pageIntroLogo || reduced) return Promise.resolve();
+    introRun += 1;
+    pageIntroLogo.src = `./assets/brand-logo-intro.svg#run-${introRun}`;
+    pageIntro.classList.add('is-active');
+    return sleep(2180).then(() => {
+      pageIntro.classList.remove('is-active');
+      return sleep(220);
+    });
+  }
+
+  if (reduced) {
+    pageIntro?.classList.remove('is-active');
+  } else {
+    pageIntro?.classList.add('is-active');
+    window.setTimeout(() => pageIntro?.classList.remove('is-active'), 2300);
+  }
+
+  document.addEventListener('click', (event) => {
+    const link = event.target.closest('a[href^="#"], a[data-page-transition]');
+    if (!link || event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+    const href = link.getAttribute('href');
+    const target = href.startsWith('#') ? document.querySelector(href) : null;
+    if ((href.startsWith('#') && !target) || reduced) return;
+    event.preventDefault();
+    replayPageIntro().then(() => {
+      if (target) {
+        history.pushState(null, '', href);
+        target.scrollIntoView({ behavior: 'auto', block: 'start' });
+      } else {
+        window.location.assign(link.href);
+      }
+    });
+  });
+
   /* ---------------- theme / language ---------------- */
 
   function setTheme(theme) {
@@ -40,6 +81,7 @@
     document.querySelector('#theme-toggle').setAttribute('aria-label', data[locale].nav.theme);
     renderVault();
     if (vaultPlayed || reduced) vaultFinalState();
+    renderVaultBridge();
     renderFlow();
     renderPanels();
     renderChips();
@@ -86,15 +128,6 @@
   });
 
   /* ---------------- scroll progress + reveal ---------------- */
-
-  const progressFill = document.querySelector('#scroll-progress-fill');
-  const onScroll = () => {
-    const doc = document.documentElement;
-    const max = doc.scrollHeight - doc.clientHeight;
-    progressFill.style.transform = `scaleX(${max > 0 ? doc.scrollTop / max : 0})`;
-  };
-  window.addEventListener('scroll', onScroll, { passive: true });
-  onScroll();
 
   if (!reduced && 'IntersectionObserver' in window) {
     root.classList.add('motion-ready');
@@ -254,6 +287,298 @@
       }
     }, { threshold: 0.25 });
     io.observe(host);
+  }
+
+  /* ---------------- native vault + agent access ---------------- */
+
+  let bridgeTypeId = '/not-initialized';
+  let bridgeInterfaceId = 'agent';
+  let bridgeAnimation = 0;
+  let bridgeTourTimer = 0;
+  let bridgeTourStarted = false;
+  let bridgeUserControlled = false;
+  let threeVault = null;
+
+  function initThreeVault() {
+    const canvas = document.querySelector('#vault-scene');
+    const universe = document.querySelector('#vault-universe');
+    const THREE = window.THREE;
+    if (!canvas || !universe || !THREE || reduced || threeVault) return;
+    if (window.matchMedia('(max-width: 767px)').matches) {
+      canvas.classList.add('is-unavailable');
+      return;
+    }
+
+    let renderer;
+    try {
+      renderer = new THREE.WebGLRenderer({ canvas, alpha: true, antialias: false, powerPreference: 'low-power' });
+    } catch {
+      canvas.classList.add('is-unavailable');
+      return;
+    }
+    renderer.setPixelRatio(1);
+    const scene = new THREE.Scene();
+    const camera = new THREE.PerspectiveCamera(38, 1, .1, 100);
+    camera.position.z = 6.8;
+    const group = new THREE.Group();
+    scene.add(group);
+
+    const core = new THREE.Mesh(
+      new THREE.IcosahedronGeometry(1.05, 1),
+      new THREE.MeshPhysicalMaterial({ color: 0x0969ff, emissive: 0x042d73, emissiveIntensity: .85, metalness: .32, roughness: .18, transmission: .08, wireframe: true, transparent: true, opacity: .8 })
+    );
+    group.add(core);
+    [1.62, 2.12].forEach((radius, index) => {
+      const ring = new THREE.Mesh(
+        new THREE.TorusGeometry(radius, .012, 8, 110),
+        new THREE.MeshBasicMaterial({ color: index === 1 ? 0x21d4fd : 0x3485ff, transparent: true, opacity: .38 - index * .06 })
+      );
+      ring.rotation.set(index * .7 + .35, index * .45, index * .85);
+      group.add(ring);
+    });
+
+    const particleCount = 48;
+    const positions = new Float32Array(particleCount * 3);
+    for (let i = 0; i < particleCount; i += 1) {
+      const angle = Math.random() * Math.PI * 2;
+      const radius = 1.45 + Math.random() * 1.65;
+      positions[i * 3] = Math.cos(angle) * radius;
+      positions[i * 3 + 1] = (Math.random() - .5) * 3.6;
+      positions[i * 3 + 2] = Math.sin(angle) * radius * .45;
+    }
+    const particleGeometry = new THREE.BufferGeometry();
+    particleGeometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+    const particles = new THREE.Points(particleGeometry, new THREE.PointsMaterial({ color: 0x35c7ff, size: .026, transparent: true, opacity: .6 }));
+    group.add(particles);
+
+    const pointer = { x: 0, y: 0 };
+    universe.addEventListener('pointermove', (event) => {
+      const rect = universe.getBoundingClientRect();
+      pointer.x = ((event.clientX - rect.left) / rect.width - .5) * .36;
+      pointer.y = ((event.clientY - rect.top) / rect.height - .5) * .22;
+    });
+    universe.addEventListener('pointerleave', () => { pointer.x = 0; pointer.y = 0; });
+
+    const resize = () => {
+      const rect = canvas.getBoundingClientRect();
+      renderer.setSize(rect.width, rect.height, false);
+      camera.aspect = rect.width / Math.max(rect.height, 1);
+      camera.position.z = rect.width < 600 ? 8.5 : 6.8;
+      camera.updateProjectionMatrix();
+    };
+    new ResizeObserver(resize).observe(universe);
+    resize();
+
+    const state = { visible: true, energy: 0, lastFrame: 0 };
+    const tick = (now) => {
+      requestAnimationFrame(tick);
+      if (!state.visible || document.hidden || window.innerWidth <= 767 || now - state.lastFrame < 33) return;
+      state.lastFrame = now;
+      group.rotation.y += .0028 + state.energy * .014;
+      group.rotation.x += (pointer.y - group.rotation.x) * .025;
+      group.rotation.z += (pointer.x - group.rotation.z) * .025;
+      particles.rotation.y -= .0018;
+      core.scale.setScalar(1 + Math.sin(performance.now() * .0018) * .025 + state.energy * .12);
+      state.energy *= .94;
+      renderer.render(scene, camera);
+    };
+    requestAnimationFrame(tick);
+    threeVault = {
+      pulse: () => { state.energy = 1; },
+      setVisible: (value) => { state.visible = value; },
+    };
+  }
+
+  function bridgeCopy(template, type, iface) {
+    return String(template || '')
+      .replace('{type}', type?.name || '')
+      .replace('{interface}', iface?.name || '');
+  }
+
+  function updateBridgeStatus(mode = 'ready') {
+    const data = t('vaultBridge');
+    const type = data.types.find((item) => item.id === bridgeTypeId) || data.types[0];
+    const iface = data.interfaces.find((item) => item.id === bridgeInterfaceId) || data.interfaces[0];
+    const status = document.querySelector('#bridge-route-status');
+    if (!status) return;
+    const key = mode === 'running' ? 'routeRunning' : mode === 'done' ? 'routeDone' : 'routeReady';
+    status.textContent = bridgeCopy(data[key], type, iface);
+    status.dataset.state = mode;
+  }
+
+  function renderVaultBridge() {
+    const data = t('vaultBridge');
+    const types = document.querySelector('#bridge-type-list');
+    const interfaces = document.querySelector('#bridge-interface-tabs');
+    if (!types || !interfaces) return;
+    if (!data.types.some((item) => item.id === bridgeTypeId)) bridgeTypeId = data.types[0].id;
+    if (!data.interfaces.some((item) => item.id === bridgeInterfaceId)) bridgeInterfaceId = data.interfaces[0].id;
+
+    types.innerHTML = '';
+    data.types.forEach((item) => {
+      const button = el('button', 'bridge-type' + (item.id === bridgeTypeId ? ' active' : ''));
+      button.type = 'button';
+      button.dataset.typeId = item.id;
+      button.setAttribute('role', 'tab');
+      button.setAttribute('aria-selected', String(item.id === bridgeTypeId));
+      button.innerHTML = `<span>${esc(item.index)}</span><strong>${esc(item.name)}</strong><small>${esc(item.detail)}</small>`;
+      button.addEventListener('click', () => selectBridgeType(item.id));
+      types.append(button);
+    });
+
+    interfaces.innerHTML = '';
+    data.interfaces.forEach((item) => {
+      const button = el('button', 'bridge-interface' + (item.id === bridgeInterfaceId ? ' active' : ''));
+      button.type = 'button';
+      button.dataset.interfaceId = item.id;
+      button.setAttribute('role', 'tab');
+      button.setAttribute('aria-selected', String(item.id === bridgeInterfaceId));
+      button.textContent = item.name;
+      button.addEventListener('click', () => selectBridgeInterface(item.id));
+      interfaces.append(button);
+    });
+
+    updateBridgePreview(false);
+    updateBridgeOutput();
+    updateBridgeStatus();
+    initThreeVault();
+
+    const run = document.querySelector('#bridge-run');
+    if (run && !run.dataset.bound) {
+      run.dataset.bound = 'true';
+      run.addEventListener('click', () => {
+        bridgeUserControlled = true;
+        window.clearTimeout(bridgeTourTimer);
+        runBridgeRoute();
+      });
+    }
+  }
+
+  function selectBridgeType(id) {
+    if (id === bridgeTypeId) return;
+    bridgeTypeId = id;
+    document.querySelectorAll('.bridge-type').forEach((button) => {
+      const selected = button.dataset.typeId === id;
+      button.classList.toggle('active', selected);
+      button.setAttribute('aria-selected', String(selected));
+    });
+    updateBridgePreview(true);
+    updateBridgeStatus();
+  }
+
+  function updateBridgePreview(animate) {
+    const data = t('vaultBridge');
+    const item = data.types.find((entry) => entry.id === bridgeTypeId) || data.types[0];
+    const preview = document.querySelector('#bridge-field-preview');
+    const core = document.querySelector('#bridge-vault-core');
+    const state = document.querySelector('#bridge-vault-state');
+    if (!preview || !core || !state) return;
+    preview.innerHTML = `<strong>${esc(item.name)}</strong><span class="bridge-inline-badge">${esc(data.synthetic)}</span>${Array.from({ length: item.sample.length / 2 }, (_, index) => `<span class="bridge-inline-field"><b>${esc(item.sample[index * 2])}</b>${esc(item.sample[index * 2 + 1])}</span>`).join('')}`;
+    state.textContent = `${item.name} / ${data.encrypted}`;
+    if (!animate || reduced) return;
+    threeVault?.pulse();
+    window.gsap?.fromTo(preview, { autoAlpha: .25, y: 12, rotate: -2 }, { autoAlpha: 1, y: 0, rotate: 0, duration: .48, ease: 'power3.out' });
+  }
+
+  function selectBridgeInterface(id) {
+    bridgeInterfaceId = id;
+    document.querySelectorAll('.bridge-interface').forEach((button) => {
+      const selected = button.dataset.interfaceId === id;
+      button.classList.toggle('active', selected);
+      button.setAttribute('aria-selected', String(selected));
+    });
+    updateBridgeOutput();
+    updateBridgeStatus();
+  }
+
+  function runBridgeRoute() {
+    const host = document.querySelector('#vault-bridge');
+    const core = document.querySelector('#bridge-vault-core');
+    const output = document.querySelector('#bridge-output');
+    const run = document.querySelector('#bridge-run');
+    if (!host || !core || !output || !run) return;
+    const source = document.querySelector('.bridge-type.active');
+    const target = document.querySelector('.bridge-interface.active');
+    const layer = document.querySelector('#bridge-flight-layer');
+    const token = ++bridgeAnimation;
+    host.classList.remove('routing', 'route-complete');
+    void host.offsetWidth;
+    host.classList.add('routing');
+    core.classList.add('receiving');
+    output.classList.add('waiting');
+    run.disabled = true;
+    updateBridgeStatus('running');
+    threeVault?.pulse();
+
+    const finish = () => {
+      if (token !== bridgeAnimation) return;
+      host.classList.remove('routing');
+      host.classList.add('route-complete');
+      core.classList.remove('receiving');
+      output.classList.remove('waiting');
+      output.classList.add('delivered');
+      run.disabled = false;
+      updateBridgeStatus('done');
+      window.setTimeout(() => output.classList.remove('delivered'), 850);
+    };
+
+    if (reduced || !window.gsap || !source || !target || !layer) {
+      window.setTimeout(finish, reduced ? 0 : 1050);
+      return;
+    }
+
+    const universe = document.querySelector('#vault-universe');
+    const u = universe.getBoundingClientRect();
+    const from = source.getBoundingClientRect();
+    const middle = core.getBoundingClientRect();
+    const to = target.getBoundingClientRect();
+    const packet = el('span', 'bridge-flight-packet', '▓▓▓');
+    layer.append(packet);
+    const point = (rect) => ({ x: rect.left - u.left + rect.width / 2, y: rect.top - u.top + rect.height / 2 });
+    const a = point(from); const b = point(middle); const c = point(to);
+    window.gsap.set(packet, { x: a.x, y: a.y, xPercent: -50, yPercent: -50 });
+    window.gsap.timeline({ onComplete: () => { packet.remove(); finish(); } })
+      .to(packet, { x: b.x, y: b.y, scale: .55, rotate: 210, duration: .7, ease: 'power2.in' })
+      .call(() => { packet.textContent = '◈'; threeVault?.pulse(); })
+      .to(packet, { x: c.x, y: c.y, scale: 1, rotate: 360, duration: .65, ease: 'power3.out' })
+      .to(packet, { autoAlpha: 0, scale: 1.8, duration: .22 });
+  }
+
+  function startBridgeTour() {
+    if (bridgeTourStarted || bridgeUserControlled || reduced) return;
+    bridgeTourStarted = true;
+    const data = t('vaultBridge');
+    bridgeTourTimer = window.setTimeout(() => {
+      if (bridgeUserControlled || !document.querySelector('#vault-bridge')?.classList.contains('in')) return;
+      const type = data.types[1] || data.types[0];
+      const iface = data.interfaces[2] || data.interfaces[0];
+      selectBridgeType(type.id);
+      selectBridgeInterface(iface.id);
+      bridgeTourTimer = window.setTimeout(runBridgeRoute, 420);
+    }, 700);
+  }
+
+  function watchBridge() {
+    const host = document.querySelector('#vault-bridge');
+    if (!host || reduced || !('IntersectionObserver' in window)) return;
+    const io = new IntersectionObserver((entries) => {
+      for (const entry of entries) {
+        threeVault?.setVisible(entry.isIntersecting);
+        if (entry.isIntersecting) startBridgeTour();
+      }
+    }, { threshold: 0.38 });
+    io.observe(host);
+  }
+
+  function updateBridgeOutput() {
+    const data = t('vaultBridge');
+    const item = data.interfaces.find((entry) => entry.id === bridgeInterfaceId) || data.interfaces[0];
+    const output = document.querySelector('#bridge-output');
+    if (!output) return;
+    output.classList.remove('switching');
+    void output.offsetWidth;
+    output.innerHTML = `<p>${esc(item.detail)}</p><code><span>$</span> ${esc(item.command)}</code><pre>${esc(item.result)}</pre>`;
+    if (!reduced) output.classList.add('switching');
   }
 
   /* ---------------- theater (guardrails terminal) ---------------- */
@@ -639,12 +964,18 @@
         host.append(link);
       }
     });
-    startDecode();
+    if (reduced) document.querySelector('.flow-decode').textContent = 'boss@itycon.cn ✓';
+    else if (flowVisible) {
+      host.classList.add('is-running');
+      startDecodeLoop();
+    }
   }
 
-  let decodeTimer = null;
-  function startDecode() {
-    clearTimeout(decodeTimer);
+  let decodeGen = 0;
+  let flowVisible = false;
+
+  async function startDecodeLoop() {
+    const gen = ++decodeGen;
     const node = document.querySelector('.flow-decode');
     if (!node) return;
     const values = ['boss@itycon.cn ✓', 'api.cloudflare.com ✓', 'ssh://nas ✓'];
@@ -652,19 +983,38 @@
       node.textContent = values[0];
       return;
     }
-    const target = values[0];
     const chars = '▓░#%&@$';
-    decodeTimer = setTimeout(() => {
+    let valueIndex = 0;
+    while (gen === decodeGen && node.isConnected && flowVisible) {
+      const target = values[valueIndex % values.length];
+      node.textContent = '▓▓▓▓▓▓▓▓';
+      await sleep(520);
+      if (gen !== decodeGen || !flowVisible) return;
       let frame = 0;
-      const iv = setInterval(() => {
+      while (frame <= target.length * 1.5 + 2 && gen === decodeGen && flowVisible) {
         node.textContent = target.split('').map((c, i) => (frame > i * 1.5 ? c : chars[Math.random() * chars.length | 0])).join('');
         frame += 1;
-        if (frame > target.length * 1.5 + 2) {
-          clearInterval(iv);
-          node.textContent = target;
-        }
-      }, 42);
-    }, 650);
+        await sleep(42);
+      }
+      node.textContent = target;
+      valueIndex += 1;
+      await sleep(1450);
+    }
+  }
+
+  function watchFlow() {
+    if (reduced) return;
+    const host = document.querySelector('#boundary-flow');
+    const io = new IntersectionObserver((entries) => {
+      for (const entry of entries) {
+        const wasVisible = flowVisible;
+        flowVisible = entry.isIntersecting;
+        host.classList.toggle('is-running', flowVisible);
+        if (flowVisible && !wasVisible) startDecodeLoop();
+        if (!flowVisible && wasVisible) decodeGen += 1;
+      }
+    }, { threshold: 0.25 });
+    io.observe(host);
   }
 
   /* ---------------- boot ---------------- */
@@ -674,6 +1024,8 @@
   watchTheater();
   watchPlayground();
   watchPanels();
+  watchFlow();
+  watchBridge();
 
   if (reduced) {
     vaultFinalState();

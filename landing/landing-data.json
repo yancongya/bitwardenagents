@@ -29,7 +29,7 @@
       "visualNote": "合成数据 · 未连接真实账户"
     },
     "heroWindow": {
-      "windowTitle": "bwvault — demo",
+      "windowTitle": "bwvault / demo",
       "demoBadge": "合成数据",
       "sidebarTitle": "文件夹",
       "folders": [
@@ -58,6 +58,33 @@
       "scanMerged": "已合并 1 条 · 可从回收站恢复",
       "maskNote": "密码保持脱敏"
     },
+    "vaultBridge": {
+      "title": "一个密码库，人和 Agent 都能用",
+      "lead": "登录凭据、支付卡、身份信息、安全笔记和 SSH 密钥继续保存在 Bitwarden。Bitwardenagents 增加自托管 Web、Docker 与 CLI，不必再到处复制、粘贴和另存一份。",
+      "nativeLabel": "Bitwarden 原生项目",
+      "vaultLabel": "同一座加密密码库",
+      "accessLabel": "Bitwardenagents 访问层",
+      "synthetic": "演示数据",
+      "encrypted": "已加密",
+      "localNote": "原始数据留在 Bitwarden，Agent 默认只获得脱敏结果。",
+      "stageHint": "选择一种内容和一个入口，亲手跑一次安全路由",
+      "routeAction": "运行路由",
+      "routeReady": "已选择：{type} → {interface}",
+      "routeRunning": "正在加密转交…",
+      "routeDone": "{type} 已通过 {interface} 返回脱敏结果",
+      "types": [
+        { "id": "login", "index": "01", "name": "登录凭据", "detail": "用户名、密码、URI、TOTP 与通行密钥", "sample": ["account", "ops@itycon.cn", "password", "••••••••", "totp", "••••••"] },
+        { "id": "card", "index": "02", "name": "支付卡", "detail": "持卡人、卡号、有效期与安全码", "sample": ["holder", "T. Yan", "number", "•••• 4242", "cvv", "•••"] },
+        { "id": "identity", "index": "03", "name": "身份信息", "detail": "姓名、地址、联系方式与证件字段", "sample": ["name", "T. Yan", "address", "••••••••", "id", "••••••"] },
+        { "id": "note", "index": "04", "name": "安全笔记", "detail": "恢复码、授权信息和私密文本", "sample": ["title", "Recovery codes", "content", "••••••••", "status", "stored"] },
+        { "id": "ssh", "index": "05", "name": "SSH 密钥", "detail": "私钥、公钥与指纹", "sample": ["host", "nas.local", "private", "••••••••", "fingerprint", "SHA256:••••"] }
+      ],
+      "interfaces": [
+        { "id": "web", "name": "Web", "detail": "在浏览器中查看、整理与编辑原生项目。", "command": "打开 /dev/ 管理面板", "result": "五类项目统一浏览" },
+        { "id": "docker", "name": "Docker", "detail": "在 NAS 持久化会话，容器重启后使用 PIN 解锁。", "command": "BWVAULT_HOME=/data/session", "result": "session  persisted" },
+        { "id": "agent", "name": "Agent CLI", "detail": "Agent 使用稳定别名和机器可读输出，秘密默认不返回。", "command": "bwvault credential list --json", "result": "cloudflare.itycon.dns  stored  masked" }
+      ]
+    },
     "guardrails": {
       "title": "一次操作，要过四道护栏",
       "lead": "这不是安全口号。下面这台终端在跑真实命令，四道护栏随执行依次点亮。",
@@ -78,12 +105,12 @@
       "dry": [
         { "t": "cmd", "text": "bwvault manage dedup --dry-run" },
         { "t": "bar", "label": "decrypting", "max": 312 },
-        { "t": "out", "text": "✓ decrypted locally — secrets never enter argv", "cls": "ok", "gate": 0 },
+        { "t": "out", "text": "✓ decrypted locally / secrets never enter argv", "cls": "ok", "gate": 0 },
         { "t": "out", "text": "Dry run: 3 duplicate groups, 5 items would be soft-deleted.", "gate": 2 },
         { "t": "out", "text": "Re-run with --apply to execute.", "cls": "dim" },
         { "t": "kv", "rows": [["Mode", "dry-run (no changes made)"], ["Duplicate groups", "3"], ["Items to soft-delete", "5"]], "gate": 1 },
-        { "t": "out", "text": "keep    GitHub — boss@itycon.cn", "cls": "ok" },
-        { "t": "out", "text": "remove  GitHub (2021-06-13) — soft-delete → trash", "cls": "warn", "gate": 3 }
+        { "t": "out", "text": "keep    GitHub / boss@itycon.cn", "cls": "ok" },
+        { "t": "out", "text": "remove  GitHub (2021-06-13) / soft-delete → trash", "cls": "warn", "gate": 3 }
       ],
       "apply": [
         { "t": "cmd", "text": "bwvault manage dedup --apply" },
@@ -201,7 +228,7 @@
       "visualNote": "Synthetic data · no real account connection"
     },
     "heroWindow": {
-      "windowTitle": "bwvault — demo",
+      "windowTitle": "bwvault / demo",
       "demoBadge": "Synthetic data",
       "sidebarTitle": "Folders",
       "folders": [
@@ -230,6 +257,33 @@
       "scanMerged": "Merged 1 · recoverable from trash",
       "maskNote": "Passwords stay masked"
     },
+    "vaultBridge": {
+      "title": "One vault for you and your agents",
+      "lead": "Logins, cards, identities, secure notes, and SSH keys stay in Bitwarden. Bitwardenagents adds self-hosted Web, Docker, and CLI access without scattered copies.",
+      "nativeLabel": "Native Bitwarden items",
+      "vaultLabel": "One encrypted vault",
+      "accessLabel": "Bitwardenagents access layer",
+      "synthetic": "Synthetic data",
+      "encrypted": "Encrypted",
+      "localNote": "Original data stays in Bitwarden. Agents receive redacted output by default.",
+      "stageHint": "Choose an item and an interface, then run the secure route",
+      "routeAction": "Run route",
+      "routeReady": "Selected: {type} → {interface}",
+      "routeRunning": "Routing encrypted data…",
+      "routeDone": "{type} returned a redacted result through {interface}",
+      "types": [
+        { "id": "login", "index": "01", "name": "Logins", "detail": "Username, password, URI, TOTP, and passkeys", "sample": ["account", "ops@itycon.cn", "password", "••••••••", "totp", "••••••"] },
+        { "id": "card", "index": "02", "name": "Cards", "detail": "Cardholder, number, expiry, and security code", "sample": ["holder", "T. Yan", "number", "•••• 4242", "cvv", "•••"] },
+        { "id": "identity", "index": "03", "name": "Identities", "detail": "Names, addresses, contact details, and IDs", "sample": ["name", "T. Yan", "address", "••••••••", "id", "••••••"] },
+        { "id": "note", "index": "04", "name": "Secure notes", "detail": "Recovery codes, authorization data, and private text", "sample": ["title", "Recovery codes", "content", "••••••••", "status", "stored"] },
+        { "id": "ssh", "index": "05", "name": "SSH keys", "detail": "Private key, public key, and fingerprint", "sample": ["host", "nas.local", "private", "••••••••", "fingerprint", "SHA256:••••"] }
+      ],
+      "interfaces": [
+        { "id": "web", "name": "Web", "detail": "Browse, organize, and edit native item types in the browser.", "command": "Open the /dev/ management panel", "result": "five item types in one view" },
+        { "id": "docker", "name": "Docker", "detail": "Persist the session on NAS and unlock with a PIN after restart.", "command": "BWVAULT_HOME=/data/session", "result": "session  persisted" },
+        { "id": "agent", "name": "Agent CLI", "detail": "Agents use stable aliases and machine-readable output. Secrets stay hidden by default.", "command": "bwvault credential list --json", "result": "cloudflare.itycon.dns  stored  masked" }
+      ]
+    },
     "guardrails": {
       "title": "Every operation passes four gates",
       "lead": "Not a slogan. The terminal below runs a real command; the gates light up as it executes.",
@@ -250,12 +304,12 @@
       "dry": [
         { "t": "cmd", "text": "bwvault manage dedup --dry-run" },
         { "t": "bar", "label": "decrypting", "max": 312 },
-        { "t": "out", "text": "✓ decrypted locally — secrets never enter argv", "cls": "ok", "gate": 0 },
+        { "t": "out", "text": "✓ decrypted locally / secrets never enter argv", "cls": "ok", "gate": 0 },
         { "t": "out", "text": "Dry run: 3 duplicate groups, 5 items would be soft-deleted.", "gate": 2 },
         { "t": "out", "text": "Re-run with --apply to execute.", "cls": "dim" },
         { "t": "kv", "rows": [["Mode", "dry-run (no changes made)"], ["Duplicate groups", "3"], ["Items to soft-delete", "5"]], "gate": 1 },
-        { "t": "out", "text": "keep    GitHub — boss@itycon.cn", "cls": "ok" },
-        { "t": "out", "text": "remove  GitHub (2021-06-13) — soft-delete → trash", "cls": "warn", "gate": 3 }
+        { "t": "out", "text": "keep    GitHub / boss@itycon.cn", "cls": "ok" },
+        { "t": "out", "text": "remove  GitHub (2021-06-13) / soft-delete → trash", "cls": "warn", "gate": 3 }
       ],
       "apply": [
         { "t": "cmd", "text": "bwvault manage dedup --apply" },

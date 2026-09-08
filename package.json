@@ -7,11 +7,11 @@
     "dev": "vite",
     "build": "node scripts/build-cloudflare.mjs",
     "landing:build": "node landing/build.mjs",
-    "landing:preview": "npm run landing:build && vite preview --outDir landing/dist",
+    "landing:preview": "LANDING_PRODUCT_URL=http://localhost:5174/ npm run landing:build && vite preview --outDir landing/dist",
     "landing:deploy": "bash scripts/deploy-landing.sh",
     "landing:deploy:dry-run": "bash scripts/deploy-landing.sh --dry-run",
     "preview": "vite preview",
-    "deploy": "npm run build && wrangler pages deploy dist --project-name bitwardenagents --branch main --commit-dirty=true"
+    "deploy": "npm run build && npx wrangler pages deploy dist --project-name bitwardenagents --branch main --commit-dirty=true"
   },
   "devDependencies": {
     "vite": "^8.0.0"
@@ -19,6 +19,8 @@
   "dependencies": {
     "@node-rs/argon2": "^2.2.0",
     "argon2-browser": "^1.18.0",
-    "file-saver": "^2.0.5"
+    "file-saver": "^2.0.5",
+    "gsap": "^3.15.0",
+    "three": "^0.180.0"
   }
 }

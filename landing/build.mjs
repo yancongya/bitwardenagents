@@ -6,6 +6,7 @@ const root = dirname(fileURLToPath(import.meta.url));
 const project = dirname(root);
 const out = join(root, 'dist');
 const data = JSON.parse(await readFile(join(root, 'landing-data.json'), 'utf8'));
+const productUrl = process.env.LANDING_PRODUCT_URL || data.site.productUrl;
 const zh = data.zh;
 const stylesheet = await readFile(join(root, 'landing.css'), 'utf8');
 const clientScript = await readFile(join(root, 'landing.js'), 'utf8');
@@ -64,6 +65,10 @@ const html = `<!doctype html>
   <style>${stylesheet}</style>
 </head>
 <body>
+  <div class="page-intro" id="page-intro" aria-hidden="true">
+    <img id="page-intro-logo" src="./assets/brand-logo-intro.svg" alt="" width="88" height="88">
+    <span>Bitwardenagents</span>
+  </div>
   <div class="scroll-progress" aria-hidden="true"><span id="scroll-progress-fill"></span></div>
   <a class="skip-link" href="#main">Skip to content</a>
   <header class="site-header">
@@ -79,7 +84,7 @@ const html = `<!doctype html>
     <div class="header-actions">
       <button id="language-toggle" class="icon-button" type="button" aria-label="${copy('nav.language')}">EN</button>
       <button id="theme-toggle" class="icon-button" type="button" aria-label="${copy('nav.theme')}"><span aria-hidden="true">◐</span></button>
-      <a class="header-launch" href="${escapeHtml(data.site.productUrl)}" data-copy="nav.open">${copy('nav.open')}</a>
+      <a class="header-launch" href="${escapeHtml(productUrl)}" data-page-transition data-copy="nav.open">${copy('nav.open')}</a>
     </div>
   </header>
 
@@ -90,14 +95,53 @@ const html = `<!doctype html>
         ${keyed('h1', 'hero.title', 'class="hero-stagger" style="--st:1"')}
         ${keyed('p', 'hero.lead', 'class="hero-lead hero-stagger" style="--st:2"')}
         <div class="hero-actions hero-stagger" style="--st:3">
-          <a class="button" href="${escapeHtml(data.site.productUrl)}" data-copy="hero.primary">${copy('hero.primary')}</a>
-          <a class="button button-quiet" href="${escapeHtml(data.site.sourceUrl)}" data-copy="hero.secondary">${copy('hero.secondary')}</a>
+          <a class="hero-launch" href="${escapeHtml(productUrl)}" data-page-transition><span data-copy="hero.primary">${copy('hero.primary')}</span><span aria-hidden="true">→</span></a>
+          <a class="hero-secondary" href="${escapeHtml(data.site.sourceUrl)}" data-copy="hero.secondary">${copy('hero.secondary')}</a>
         </div>
       </div>
       <figure class="product-frame vault-frame hero-stagger" style="--st:4" id="vault-frame">
         <div class="vault-window" id="vault-window" aria-label="${copy('hero.visualLabel')}"></div>
         <figcaption><span data-copy="hero.visualLabel">${copy('hero.visualLabel')}</span><small data-copy="hero.visualNote">${copy('hero.visualNote')}</small></figcaption>
       </figure>
+    </section>
+
+    <section class="vault-bridge-section" id="vault-native">
+      <div class="section-heading bridge-heading" data-reveal>
+        ${keyed('h2', 'vaultBridge.title')}
+        ${keyed('p', 'vaultBridge.lead')}
+      </div>
+      <div class="vault-bridge" id="vault-bridge" data-reveal>
+        <div class="bridge-stage-head">
+          <span data-copy="vaultBridge.stageHint">${copy('vaultBridge.stageHint')}</span>
+          <button class="bridge-run" id="bridge-run" type="button"><span data-copy="vaultBridge.routeAction">${copy('vaultBridge.routeAction')}</span><i aria-hidden="true">→</i></button>
+        </div>
+        <div class="vault-universe" id="vault-universe">
+          <canvas class="vault-scene" id="vault-scene" aria-hidden="true"></canvas>
+          <div class="bridge-types">
+            <p class="bridge-label" data-copy="vaultBridge.nativeLabel">${copy('vaultBridge.nativeLabel')}</p>
+            <div class="bridge-type-list" id="bridge-type-list" role="tablist" aria-label="${copy('vaultBridge.nativeLabel')}"></div>
+          </div>
+          <div class="bridge-vault-core" id="bridge-vault-core">
+            <img src="./assets/brand-logo.svg" alt="" width="48" height="48">
+            <strong>BITWARDEN VAULT</strong>
+            <span id="bridge-vault-state" data-copy="vaultBridge.encrypted">${copy('vaultBridge.encrypted')}</span>
+          </div>
+          <div class="bridge-access">
+            <div class="bridge-access-head">
+              <p class="bridge-label" data-copy="vaultBridge.accessLabel">${copy('vaultBridge.accessLabel')}</p>
+              <span data-copy="vaultBridge.synthetic">${copy('vaultBridge.synthetic')}</span>
+            </div>
+            <div class="bridge-interface-tabs" id="bridge-interface-tabs" role="tablist" aria-label="${copy('vaultBridge.accessLabel')}"></div>
+          </div>
+          <div class="bridge-flight-layer" id="bridge-flight-layer" aria-hidden="true"></div>
+          <div class="bridge-detail-dock">
+            <div class="bridge-field-preview" id="bridge-field-preview" aria-live="polite"></div>
+            <div class="bridge-output" id="bridge-output" aria-live="polite"></div>
+          </div>
+        </div>
+        <div class="bridge-route-status" id="bridge-route-status" aria-live="polite"></div>
+      </div>
+      <p class="bridge-note" data-copy="vaultBridge.localNote">${copy('vaultBridge.localNote')}</p>
     </section>
 
     <section class="safety-section" id="safety">
@@ -184,10 +228,10 @@ const html = `<!doctype html>
       ${keyed('p', 'final.eyebrow', 'class="eyebrow"')}
       ${keyed('h2', 'final.title')}
       <div class="final-actions">
-        <a class="final-launch" href="${escapeHtml(data.site.productUrl)}" data-copy="final.primary">${copy('final.primary')}</a>
+        <a class="final-launch" href="${escapeHtml(productUrl)}" data-page-transition data-copy="final.primary">${copy('final.primary')}</a>
         <a href="${escapeHtml(data.site.sourceUrl)}" data-copy="final.source">${copy('final.source')}</a>
-        <a href="./skill.md" data-copy="final.skill">${copy('final.skill')}</a>
-        <a href="./llms.txt" data-copy="final.llms">${copy('final.llms')}</a>
+        <a href="./skill.md" data-page-transition data-copy="final.skill">${copy('final.skill')}</a>
+        <a href="./llms.txt" data-page-transition data-copy="final.llms">${copy('final.llms')}</a>
       </div>
     </section>
   </main>
@@ -197,7 +241,8 @@ const html = `<!doctype html>
     <span data-copy="footer.privacy">${copy('footer.privacy')}</span>
   </footer>
   <script id="landing-data" type="application/json">${JSON.stringify([data]).replaceAll('<', '\\u003c')}</script>
-  <script>${clientScript}</script>
+  <script src="./assets/gsap.min.js"></script>
+  <script type="module">import * as THREE from './assets/three.module.min.js'; window.THREE = THREE; ${clientScript}</script>
 </body>
 </html>`;
 
@@ -205,8 +250,12 @@ await rm(out, { recursive: true, force: true });
 await mkdir(join(out, 'assets'), { recursive: true });
 await writeFile(join(out, 'index.html'), html);
 await cp(join(project, 'public', 'brand-logo.svg'), join(out, 'assets', 'brand-logo.svg'));
+await cp(join(project, 'public', 'brand-logo-intro.svg'), join(out, 'assets', 'brand-logo-intro.svg'));
 await cp(join(root, 'assets', 'dashboard-light.png'), join(out, 'assets', 'dashboard-light.png'));
 await cp(join(root, 'assets', 'dashboard-dark.png'), join(out, 'assets', 'dashboard-dark.png'));
+await cp(join(project, 'node_modules', 'gsap', 'dist', 'gsap.min.js'), join(out, 'assets', 'gsap.min.js'));
+await cp(join(project, 'node_modules', 'three', 'build', 'three.module.min.js'), join(out, 'assets', 'three.module.min.js'));
+await cp(join(project, 'node_modules', 'three', 'build', 'three.core.min.js'), join(out, 'assets', 'three.core.min.js'));
 await cp(join(project, 'public', 'llms.txt'), join(out, 'llms.txt'));
 await cp(join(project, 'agent-harness', 'skills', 'SKILL.md'), join(out, 'skill.md'));
 await writeFile(join(out, 'landing-data.json'), JSON.stringify(data, null, 2) + '\n');

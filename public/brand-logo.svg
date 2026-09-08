@@ -2,31 +2,13 @@
   <title id="title">Bitwardenagents</title>
   <desc id="desc">A terminal prompt connected to an orbit of agent nodes.</desc>
   <style>
-    .orbit {
-      transform-origin: 32px 32px;
-      animation: orbit 24s linear infinite;
-    }
     .node-a { fill: #2563eb; }
     .node-b { fill: #06b6d4; }
     .links { stroke: #60a5fa; }
     .core { fill: #082f5b; stroke: #2563eb; }
-    .cursor {
-      animation: cursor-blink 1.6s steps(1, end) infinite;
-    }
-    @keyframes orbit { to { transform: rotate(360deg); } }
-    @keyframes cursor-blink {
-      0%, 42% { opacity: 1; }
-      43%, 68% { opacity: .18; }
-      69%, 78% { opacity: 1; }
-      79%, 100% { opacity: 0; }
-    }
     @media (prefers-color-scheme: dark) {
       .links { stroke: #38bdf8; }
       .core { fill: #0b2d52; stroke: #3b82f6; }
-    }
-    @media (prefers-reduced-motion: reduce) {
-      .orbit { animation: none; }
-      .cursor { animation: none; opacity: 1; }
     }
   </style>
   <g class="orbit">
