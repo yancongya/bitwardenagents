@@ -441,6 +441,23 @@ body:not(.auth-pending) #auth-bootstrap {
   background: var(--bg-card-hover);
 }
 
+.landing-link {
+  display: inline-flex;
+  align-items: center;
+  min-height: 36px;
+  padding-inline: 4px;
+  border-bottom: 1px solid transparent;
+  color: var(--text-secondary);
+  font-size: .82rem;
+  font-weight: 600;
+  text-decoration: none;
+  white-space: nowrap;
+  transition: color var(--transition), border-color var(--transition);
+}
+
+.landing-link::after { content: '↗'; margin-left: 6px; color: var(--brand-light); }
+.landing-link:hover { color: var(--text-primary); border-color: var(--brand); }
+
 /* Demo Banner in Sidebar */
 .demo-banner {
   text-align: center;

@@ -31,6 +31,7 @@ const translations = {
   'login.credfile.or': { zh: '或', en: 'or' },
   'login.credfile.browse': { zh: '选择文件', en: 'Browse' },
   'login.opensource': { zh: '本项目已开源，请放心使用', en: 'This project is open source' },
+  'login.about': { zh: '了解项目', en: 'About' },
   'login.opensource.link': { zh: '查看源码', en: 'View Source' },
 
   // === Login Status ===
@@ -71,6 +72,7 @@ const translations = {
   'nav.folders': { zh: '文件夹', en: 'Folders' },
   'nav.folders.add': { zh: '新建文件夹', en: 'New Folder' },
   'nav.sync': { zh: '同步', en: 'Sync' },
+  'nav.about': { zh: '项目介绍', en: 'About' },
 
   // === Demo ===
   'demo.banner': { zh: '演示模式', en: 'Demo Mode' },

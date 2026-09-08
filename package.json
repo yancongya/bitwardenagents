@@ -5,7 +5,11 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "vite build && rm -rf dist/functions && cp -R functions dist/functions",
+    "build": "npm run landing:build && vite build && rm -rf dist/functions && cp -R functions dist/functions && cp -R landing/dist dist/about",
+    "landing:build": "node landing/build.mjs",
+    "landing:preview": "npm run landing:build && vite preview --outDir landing/dist",
+    "landing:deploy": "bash scripts/deploy-landing.sh",
+    "landing:deploy:dry-run": "bash scripts/deploy-landing.sh --dry-run",
     "preview": "vite preview",
     "deploy": "npm run build && wrangler pages deploy dist --project-name bitwardenagents --branch main --commit-dirty=true"
   },

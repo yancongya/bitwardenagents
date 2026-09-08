@@ -4,7 +4,7 @@
 
 ## 0. 一句话目标
 为 **Bitwardenagents**（仓库原 `bitwarden-vault-manager`，已 rename 为 `yancongya/bitwardenagents`）做一个**数据驱动、agent 可管理、永久双站发布**的静态落地页：
-- **CF Pages 为主平面** → 子域 `land.bitwardenagents.itycon.cn`
+- **CF Pages 为主平面** → 产品站 `bitwardenagents.itycon.cn/about/`
 - **GitHub Pages 为常驻镜像** → `https://<user>.github.io/bitwardenagents/`
 - 两者**同一份构建产物、内容一致**，永久可访问。
 
@@ -21,7 +21,7 @@
   - 构建脚本：从 `landing-data.json` + 复用 `public/llms.txt` 渲染成静态 HTML（**HTML 不写死内容**）。
 - **机器可读入口（agent 可发现）**：页面注入 JSON-LD（描述 bwvault 能力），并链出 `agent-harness/skills/SKILL.md`，让其他 agent 能发现并接入。
 - 发布形态：
-  - 独立 **CF Pages 项目**（如 `bitwardenagents-landing`），挂子域 `land.bitwardenagents.itycon.cn`（itycon.cn 的 zone 已 active，加 CNAME 即可）。
+  - 主产品 CF Pages 项目在 `/about/` 挂载同一份静态产物；独立 `bitwardenagents-landing.pages.dev` 作为 CF 预览镜像。
   - **GitHub Pages** 从 `gh-pages` 分支或 `docs/` 发布，永久常驻。
 
 ## 3. 红线 / 硬约束
