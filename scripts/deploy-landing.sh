@@ -41,7 +41,7 @@ touch "$publish_dir/.nojekyll"
   git config user.name "Bitwardenagents deploy"
   git config user.email "actions@users.noreply.github.com"
   git add -A
-  git commit -q -m "deploy: landing page"
+  git commit -q -m "[CF-Pages-Skip] deploy: landing page"
   git remote add origin "https://github.com/${repo}.git"
   git push --force origin gh-pages
 )
