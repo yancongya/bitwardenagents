@@ -1,8 +1,8 @@
 {
   "site": {
     "name": "Bitwardenagents",
-    "canonical": "https://bitwardenagents.itycon.cn/about/",
-    "productUrl": "https://bitwardenagents.itycon.cn/",
+    "canonical": "https://bitwardenagents.itycon.cn/",
+    "productUrl": "https://bitwardenagents.itycon.cn/dev/",
     "sourceUrl": "https://github.com/yancongya/bitwardenagents",
     "readmeUrl": "https://github.com/yancongya/bitwardenagents#readme"
   },

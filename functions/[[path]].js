@@ -7,6 +7,12 @@ const PROXY_TARGETS = [
 
 export async function onRequest(context) {
   const url = new URL(context.request.url);
+
+  if (url.pathname === '/dev') {
+    url.pathname = '/dev/';
+    return Response.redirect(url.toString(), 308);
+  }
+
   const match = PROXY_TARGETS.find(({ prefix }) => url.pathname === prefix || url.pathname.startsWith(`${prefix}/`));
 
   if (!match) {
