@@ -602,15 +602,19 @@ export class BitwardenClient {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ ids }),
     });
-    // Try alternative endpoint if admin fails
-    if (!res.ok) {
+    // Only try the legacy route when the server explicitly rejects the method.
+    // Permission, authentication, missing-resource, and server errors must fail
+    // closed; they are not evidence that another destructive route is allowed.
+    if (!res.ok && res.status === 405) {
       const res2 = await this._authedFetch(`${this.apiUrl}/ciphers/delete`, {
         method: 'DELETE',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ ids }),
       });
       if (!res2.ok) throw new Error(`Permanent delete failed: ${res2.status}`);
+      return;
     }
+    if (!res.ok) throw new Error(`Permanent delete failed: ${res.status}`);
   }
 
   /**
