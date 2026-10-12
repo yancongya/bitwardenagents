@@ -79,3 +79,10 @@
 - 验证：新增隔离测试验证只读缓存命中不访问网络、强制远端模式遇到 401 不回退缓存、持久 API Key 可续期并重试；Agent Harness 23 项基础测试与会话缓存测试、npm 包 smoke test、Web 构建均通过。
 - 生产验证：提交 `b232a6b` 已推送并由 Agent Ops 在 NAS 构建部署为 `bwvault:release-b232a6b4ab555668`；容器运行且 Docker healthcheck 为 healthy，`/data` 持久挂载匹配。随后经 CLI 强制远端同步成功创建 `fnos.tunnel.skilldo.appkey`，输出仅报告别名与保存状态，没有返回密值。
 - 状态：写入续期路径已在生产凭据服务上验证。WebDAV HTTPS 路由仍待具备 Cloudflare Tunnel 与 DNS 权限的 API Token；该外部入口未计入本次验收。
+
+## 2026-10-12 CLI 单条目密钥解密兼容（本地已验证）
+
+- 发现：Bitwarden 条目可带独立 `Key`，其名称、登录字段和自定义字段由该条目密钥加密。旧版 CLI 始终使用账户对称密钥，导致此类条目字段无法解密，稳定凭据别名也无法匹配。
+- 修复：读取条目时先用账户密钥解开其 `Key`，再用条目密钥解密所有字段；若条目密钥损坏则仅将该条目标为解密失败，不错误回退到账户密钥。无独立 `Key` 的旧条目行为保持不变。
+- 验证：覆盖独立条目密钥、旧格式条目及损坏条目密钥的 CLI 回归测试通过；Agent Harness 测试、npm 包 smoke test、Web 构建和 `git diff --check` 通过。
+- 状态：本地源码已修复；尚未提交、推送或部署到 NAS，生产 CLI 暂未包含此修复。

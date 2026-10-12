@@ -160,9 +160,28 @@ export async function syncVault(session, onProgress, { forceRemote = false } = {
  * sync, so one corrupt item cannot block vault-wide operations.
  */
 export async function decryptCipher(c, key, folderMap = {}) {
-  const d = async (v) => {
+  // Bitwarden may encrypt a single cipher with its own symmetric key (for
+  // example passkey items). The cipher's Key is itself protected by the
+  // account symmetric key. Every encrypted field in that cipher must then be
+  // decrypted with the unwrapped item key.
+  const protectedItemKey = c.Key ?? c.key;
+  let itemKey = key;
+  let itemKeyError = null;
+  if (protectedItemKey) {
     try {
-      return v ? await decryptToString(v, key) : null;
+      itemKey = await decryptSymmetricKey(protectedItemKey, key);
+    } catch {
+      // Keep the vault inventory usable if one item is corrupt, but fail
+      // closed for this cipher instead of silently trying the wrong key.
+      itemKey = null;
+      itemKeyError = 'item-key-decryption-failed';
+    }
+  }
+
+  const d = async (v) => {
+    if (!itemKey) return null;
+    try {
+      return v ? await decryptToString(v, itemKey) : null;
     } catch {
       return null;
     }
@@ -229,6 +248,7 @@ export async function decryptCipher(c, key, folderMap = {}) {
       fingerprint: await d(sshKey.KeyFingerprint),
     } : null,
     fields: customFields,
+    ...(itemKeyError ? { decryptionError: itemKeyError } : {}),
     // Keep a handle on the original for update/delete round-trips.
     _original: c,
   };
