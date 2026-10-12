@@ -146,10 +146,22 @@ export async function move(opts, { prepareFn = prepare } = {}) {
 
   const byId = new Map(ciphers.filter((cipher) => !cipher.deletedDate).map((cipher) => [cipher.id, cipher]));
   const results = [];
+  const failures = {
+    notInRemoteSync: 0,
+    unauthorized: 0,
+    forbidden: 0,
+    notFound: 0,
+    conflict: 0,
+    rateLimited: 0,
+    serverError: 0,
+    network: 0,
+    requestError: 0,
+  };
   for (const id of ids) {
     const cipher = byId.get(id);
     if (!cipher) {
-      results.push({ status: 'failed' });
+      results.push({ status: 'failed', reason: 'notInRemoteSync' });
+      failures.notInRemoteSync += 1;
       continue;
     }
     try {
@@ -157,9 +169,11 @@ export async function move(opts, { prepareFn = prepare } = {}) {
       // leaves the encrypted cipher payload and per-item Key untouched.
       if (opts.apply) await client.bulkMoveCiphersToFolder([id], targetId);
       results.push({ status: opts.apply ? 'moved' : 'planned' });
-    } catch {
-      // Deliberately discard error text: API errors can contain identifiers or payload details.
-      results.push({ status: 'failed' });
+    } catch (error) {
+      // Keep only a coarse category. Error text can contain identifiers or payload details.
+      const reason = classifyMoveFailure(error);
+      results.push({ status: 'failed', reason });
+      failures[reason] += 1;
     }
   }
 
@@ -169,11 +183,32 @@ export async function move(opts, { prepareFn = prepare } = {}) {
   return {
     ok: failed === 0,
     dryRun: !opts.apply,
-    summary: { requested: ids.length, moved, wouldMove: planned, failed },
+    summary: { requested: ids.length, moved, wouldMove: planned, failed, failures },
     message: opts.apply
       ? `Moved ${moved} item(s); ${failed} failed.`
       : `Dry run: ${planned} item(s) would move; ${failed} failed. Add --apply to execute.`,
   };
+}
+
+/** Return a non-sensitive failure bucket for the CLI summary. */
+function classifyMoveFailure(error) {
+  const status = Number(
+    (typeof error?.message === 'string' && error.message.match(/^Bulk move failed: (\d{3})$/)?.[1])
+      ?? error?.statusCode
+      ?? error?.status
+      ?? error?.response?.status,
+  );
+  if (status === 401) return 'unauthorized';
+  if (status === 403) return 'forbidden';
+  if (status === 404) return 'notFound';
+  if (status === 409) return 'conflict';
+  if (status === 429) return 'rateLimited';
+  if (status >= 500 && status <= 599) return 'serverError';
+
+  const code = error?.code ?? error?.cause?.code;
+  if (['ECONNRESET', 'ECONNREFUSED', 'ETIMEDOUT', 'ENOTFOUND', 'EAI_AGAIN', 'UND_ERR_CONNECT_TIMEOUT'].includes(code)
+      || error?.name === 'AbortError') return 'network';
+  return 'requestError';
 }
 
 /**

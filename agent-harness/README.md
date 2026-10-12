@@ -101,7 +101,9 @@ node bin/bwvault.js manage move --id <item-id> --folder-id none --apply --json
 Every run forces a remote sync first. The command uses Bitwarden's dedicated
 move API, so it changes the folder assignment without rewriting encrypted
 fields or per-item keys. It reports only aggregate counts, continues after
-individual failures, and never deletes or purges items.
+individual failures, and never deletes or purges items. JSON summaries group
+failures into safe categories (such as `forbidden`, `notFound`, `network`, or
+`notInRemoteSync`) without returning item IDs or raw API error text.
 
 ### Global flags
 

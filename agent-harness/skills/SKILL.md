@@ -39,7 +39,7 @@ printf '%s' "$SECRET" | bwvault credential set --alias svc.api.token --username 
 
 代表性只读命令：`bwvault vault list --json`、`bwvault vault search QUERY`、`bwvault analyze health --json`、`bwvault analyze duplicates --json`。管理命令包括 `manage dedup`、`manage move`、`manage trash list/restore/purge` 和 `manage folders create/rename/delete`；执行前使用各命令帮助检查精确参数。
 
-`manage move` 使用一个或多个精确 `--id` 与 `--folder-id <id|none>`，每次都会先强制远端同步。默认只预览聚合数量；只有显式添加 `--apply` 才逐条更新。输出不含条目名称、ID或 API 错误正文；批量失败只报告数量，且移动流程不会删除或 purge 条目。
+`manage move` 使用一个或多个精确 `--id` 与 `--folder-id <id|none>`，每次都会先强制远端同步。默认只预览聚合数量；只有显式添加 `--apply` 才逐条更新。输出不含条目名称、ID或 API 错误正文；JSON 会按未出现在同步视图、401/403/404/409/429、服务端错误、网络错误和其他请求错误汇总失败类别计数。移动流程不会删除或 purge 条目。
 
 ## 持久会话
 

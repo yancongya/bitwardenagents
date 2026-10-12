@@ -95,11 +95,15 @@ const moveFixture = () => {
         ciphers: [
           { id: 'fixture-item-1', deletedDate: null, _original: { _original: original } },
           { id: 'fixture-item-fail', deletedDate: null, _original: { _original: original } },
+          { id: 'fixture-item-forbidden', deletedDate: null, _original: { _original: original } },
+          { id: 'fixture-item-network', deletedDate: null, _original: { _original: original } },
         ],
         folders: [{ id: 'fixture-folder-1', name: 'fixture-folder-name' }],
         client: { bulkMoveCiphersToFolder: async (ids, folderId) => {
           calls.push({ ids, folderId });
           if (ids[0] === 'fixture-item-fail') throw new Error('sensitive API detail');
+          if (ids[0] === 'fixture-item-forbidden') throw new Error('Bulk move failed: 403');
+          if (ids[0] === 'fixture-item-network') throw Object.assign(new Error('sensitive network detail'), { code: 'ETIMEDOUT' });
         } },
       };
     },
@@ -131,12 +135,23 @@ const moveFixture = () => {
 
 {
   const fixture = moveFixture();
-  const result = await moveItems({ ids: ['fixture-item-fail', 'fixture-item-1'], folderId: 'none', apply: true }, fixture.dependencies);
-  assert(result.summary.failed === 1 && result.summary.moved === 1, 'manage move reports per-item batch failures');
-  assert(fixture.calls.length === 2 && fixture.calls[1].folderId === null,
+  const result = await moveItems({
+    ids: ['fixture-item-fail', 'fixture-item-forbidden', 'fixture-item-network', 'missing-from-sync', 'fixture-item-1'],
+    folderId: 'none', apply: true,
+  }, fixture.dependencies);
+  assert(result.summary.failed === 4 && result.summary.moved === 1, 'manage move reports per-item batch failures');
+  assert(result.summary.failures.requestError === 1
+    && result.summary.failures.forbidden === 1
+    && result.summary.failures.network === 1
+    && result.summary.failures.notInRemoteSync === 1,
+  'manage move reports safe failure category counts');
+  assert(fixture.calls.length === 4 && fixture.calls[3].folderId === null,
     'manage move supports No Folder and continues after an item failure');
-  assert(!JSON.stringify(result).includes('fixture-item-fail') && !JSON.stringify(result).includes('sensitive API detail'),
-    'manage move failure summary omits IDs and API error details');
+  assert(!JSON.stringify(result).includes('fixture-item-fail')
+    && !JSON.stringify(result).includes('sensitive API detail')
+    && !JSON.stringify(result).includes('sensitive network detail')
+    && !JSON.stringify(result).includes('403'),
+  'manage move failure summary omits IDs, HTTP details and API error text');
 }
 
 // ── summary ──
