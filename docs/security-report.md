@@ -103,3 +103,9 @@
 - 验证：Agent Harness 50 项全部通过，覆盖未列出路由、方法错配、真实 Web UI 批量操作、其他 Bearer token、锁定状态、跨源写入、同源登录和首次同步 token；CLI package smoke test、Web 生产构建、语法检查和 `git diff --check` 通过。
 - 部署：提交 `d277936bebba2a746ae6da9f5486f55827b8f19f` 已推送并在 NAS 上构建部署为 `bwvault:release-d277936bebba2a74`。Agent Ops 确认容器 `running` / `healthy`，`/data` bind mount 仍匹配预期；NAS 内网 HTTPS 首屏返回 200，未带授权的 `/bw-api/sync` 返回 401，未列出的 `/bw-api/unknown` 与 `/bw-identity/admin/users` 均返回 403。接口检查使用 NAS IP 和跳过自签证书验证，没有完成浏览器真实登录后的完整交互验收。
 - 限制：这个代理白名单是本应用的操作边界，不更改 Bitwarden 账户权限；Web UI 当前列出的批量写操作仍由已解锁会话执行，后续若需要操作级审批，应新增独立窄 API/确认流程，不开放任意上游代理。
+
+## 2026-10-13 凭据文件夹移动回执核验（本地验证中）
+
+- 发现：密码库分类移动时，CLI 把上游 HTTP 成功响应直接计为已移动；实际强制远端同步后，部分条目仍留在未归档状态，之前的 CLI 汇总不足以证明最终状态。
+- 修复：`manage move --apply` 在写入后再强制远端同步，逐条核对实际 `folderId`；只有回读匹配目标才计为 moved，写入未生效或无法核验会进入脱敏失败类别，不会宣称完成。
+- 验证：Agent Harness 覆盖远端归属一致、上游返回成功但回读未变、核验同步失败等路径；生产部署及针对 12 条未确认 NAS 条目的重新核验待完成。

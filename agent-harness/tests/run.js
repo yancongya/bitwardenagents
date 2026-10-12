@@ -112,27 +112,31 @@ const moveFixture = () => {
   };
   const calls = [];
   let remoteSync = false;
+  let verifyCalls = 0;
+  const ciphers = [
+    { id: 'fixture-item-1', deletedDate: null, folderId: null, _original: { _original: original } },
+    { id: 'fixture-item-fail', deletedDate: null, folderId: null, _original: { _original: original } },
+    { id: 'fixture-item-forbidden', deletedDate: null, folderId: null, _original: { _original: original } },
+    { id: 'fixture-item-network', deletedDate: null, folderId: null, _original: { _original: original } },
+  ];
   const dependencies = {
     prepareFn: async (_opts, config) => {
       remoteSync = config.forceRemote === true;
       return {
-        ciphers: [
-          { id: 'fixture-item-1', deletedDate: null, _original: { _original: original } },
-          { id: 'fixture-item-fail', deletedDate: null, _original: { _original: original } },
-          { id: 'fixture-item-forbidden', deletedDate: null, _original: { _original: original } },
-          { id: 'fixture-item-network', deletedDate: null, _original: { _original: original } },
-        ],
+        ciphers,
         folders: [{ id: 'fixture-folder-1', name: 'fixture-folder-name' }],
         client: { bulkMoveCiphersToFolder: async (ids, folderId) => {
           calls.push({ ids, folderId });
           if (ids[0] === 'fixture-item-fail') throw new Error('sensitive API detail');
           if (ids[0] === 'fixture-item-forbidden') throw new Error('Bulk move failed: 403');
           if (ids[0] === 'fixture-item-network') throw Object.assign(new Error('sensitive network detail'), { code: 'ETIMEDOUT' });
+          ciphers.find((cipher) => cipher.id === ids[0]).folderId = folderId;
         } },
       };
     },
+    verifyFn: async () => { verifyCalls++; return ciphers; },
   };
-  return { original, calls, dependencies, didSync: () => remoteSync };
+  return { original, calls, ciphers, dependencies, didSync: () => remoteSync, verifyCalls: () => verifyCalls };
 };
 
 {
@@ -140,6 +144,7 @@ const moveFixture = () => {
   const result = await moveItems({ ids: ['fixture-item-1'], folderId: 'fixture-folder-1' }, fixture.dependencies);
   assert(fixture.didSync(), 'manage move forces a remote sync during dry-run');
   assert(fixture.calls.length === 0, 'manage move dry-run performs no API update');
+  assert(fixture.verifyCalls() === 0, 'manage move dry-run skips post-write verification');
   assert(result.dryRun && result.summary.wouldMove === 1, 'manage move dry-run reports planned item count');
   assert(!JSON.stringify(result).includes('fixture-item-1'), 'manage move output omits item IDs');
 }
@@ -148,13 +153,14 @@ const moveFixture = () => {
   const fixture = moveFixture();
   const result = await moveItems({ ids: ['fixture-item-1'], folderId: 'fixture-folder-1', apply: true }, fixture.dependencies);
   assert(fixture.didSync() && fixture.calls.length === 1, 'manage move apply forces remote sync and moves the exact item');
+  assert(fixture.verifyCalls() === 1, 'manage move apply forces a second remote sync to verify the folder');
   assert(JSON.stringify(fixture.calls[0]?.ids) === JSON.stringify(['fixture-item-1'])
     && fixture.calls[0]?.folderId === 'fixture-folder-1', 'manage move sends exact ID and target to the dedicated move API');
   assert(typeof fixture.calls[0]?.cipher === 'undefined'
     && fixture.original.Key === 'fixture-item-key' && fixture.original.Login.Password === 'enc-password',
   'manage move does not rewrite cipher fields or its per-item key');
   assert(result.ok && result.summary.moved === 1 && !JSON.stringify(result).includes('fixture-item-1'),
-    'manage move reports only a non-sensitive success summary');
+    'manage move reports a remotely verified non-sensitive success summary');
 }
 
 {
@@ -176,6 +182,27 @@ const moveFixture = () => {
     && !JSON.stringify(result).includes('sensitive network detail')
     && !JSON.stringify(result).includes('403'),
   'manage move failure summary omits IDs, HTTP details and API error text');
+}
+
+{
+  const fixture = moveFixture();
+  const result = await moveItems(
+    { ids: ['fixture-item-1'], folderId: 'fixture-folder-1', apply: true },
+    { ...fixture.dependencies, verifyFn: async () => [{ id: 'fixture-item-1', folderId: null }] },
+  );
+  assert(result.summary.moved === 0 && result.summary.failed === 1 && result.summary.failures.notApplied === 1,
+    'manage move does not report success when the remote folder did not change');
+}
+
+{
+  const fixture = moveFixture();
+  const result = await moveItems(
+    { ids: ['fixture-item-1'], folderId: 'fixture-folder-1', apply: true },
+    { ...fixture.dependencies, verifyFn: async () => { throw new Error('private sync detail'); } },
+  );
+  assert(result.summary.moved === 0 && result.summary.failed === 1 && result.summary.failures.verificationUnavailable === 1,
+    'manage move fails closed when remote verification is unavailable');
+  assert(!JSON.stringify(result).includes('private sync detail'), 'manage move verification errors remain redacted');
 }
 
 // ── summary ──

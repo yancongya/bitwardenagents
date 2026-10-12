@@ -130,7 +130,7 @@ export async function dedup(opts) {
 }
 
 /** Move exact item IDs to a folder or No Folder. Sync is always remote-first. */
-export async function move(opts, { prepareFn = prepare } = {}) {
+export async function move(opts, { prepareFn = prepare, verifyFn } = {}) {
   if (!Array.isArray(opts.ids) || opts.ids.length === 0 || opts.ids.some((id) => !id)) {
     throw new Error('At least one --id is required');
   }
@@ -138,7 +138,7 @@ export async function move(opts, { prepareFn = prepare } = {}) {
 
   const ids = opts.ids;
   if (new Set(ids).size !== ids.length) throw new Error('Duplicate --id values are not allowed');
-  const { ciphers, folders, client } = await prepareFn(opts, { forceRemote: true });
+  const { ciphers, folders, client, session: currentSession } = await prepareFn(opts, { forceRemote: true });
   const targetId = opts.folderId.toLowerCase() === 'none' ? null : opts.folderId;
   if (targetId && !folders.some((folder) => folder.id === targetId)) {
     throw new Error('Target folder was not found in the remotely synced vault');
@@ -156,7 +156,10 @@ export async function move(opts, { prepareFn = prepare } = {}) {
     serverError: 0,
     network: 0,
     requestError: 0,
+    notApplied: 0,
+    verificationUnavailable: 0,
   };
+  const submitted = [];
   for (const id of ids) {
     const cipher = byId.get(id);
     if (!cipher) {
@@ -167,13 +170,51 @@ export async function move(opts, { prepareFn = prepare } = {}) {
     try {
       // Use the server's dedicated move endpoint. It changes only FolderId and
       // leaves the encrypted cipher payload and per-item Key untouched.
-      if (opts.apply) await client.bulkMoveCiphersToFolder([id], targetId);
-      results.push({ status: opts.apply ? 'moved' : 'planned' });
+      if (opts.apply) {
+        await client.bulkMoveCiphersToFolder([id], targetId);
+        submitted.push(id);
+        results.push({ status: 'submitted' });
+      } else {
+        results.push({ status: 'planned' });
+      }
     } catch (error) {
       // Keep only a coarse category. Error text can contain identifiers or payload details.
       const reason = classifyMoveFailure(error);
       results.push({ status: 'failed', reason });
       failures[reason] += 1;
+    }
+  }
+
+  if (submitted.length > 0) {
+    let verifiedCiphers;
+    try {
+      const verify = verifyFn || (async (s) => (
+        await syncVault(s, (done, total) => {
+          if (!opts.json) out.progress(done, total, 'verifying')
+        }, { forceRemote: true })
+      ).ciphers);
+      verifiedCiphers = await verify(currentSession);
+      if (!Array.isArray(verifiedCiphers)) throw new Error('Remote verification returned no cipher list');
+    } catch {
+      for (let i = 0; i < results.length; i++) {
+        if (results[i].status === 'submitted') {
+          results[i] = { status: 'failed', reason: 'verificationUnavailable' };
+          failures.verificationUnavailable++;
+        }
+      }
+    }
+
+    if (verifiedCiphers) {
+      const verifiedById = new Map(verifiedCiphers.map((cipher) => [cipher.id, cipher]));
+      for (let i = 0; i < results.length; i++) {
+        if (results[i].status !== 'submitted') continue;
+        if (verifiedById.get(ids[i])?.folderId === targetId) {
+          results[i] = { status: 'moved' };
+        } else {
+          results[i] = { status: 'failed', reason: 'notApplied' };
+          failures.notApplied++;
+        }
+      }
     }
   }
 
