@@ -12,6 +12,7 @@ import { sessionStatus, saveSession, loadSession, clearSession } from '../core/s
 import { emit } from '../core/display.js';
 import { credentialItemName, normalizeAlias } from '../commands/credential.js';
 import { move as moveItems } from '../commands/manage.js';
+import { proxyRequestDenial } from '../core/proxy-policy.js';
 
 let pass = 0, fail = 0;
 
@@ -78,6 +79,29 @@ assertEqual(credentialItemName('nas.ssh'), 'Agent Credential: nas.ssh', 'credent
 let rejectedAlias = false;
 try { normalizeAlias('../secret'); } catch { rejectedAlias = true; }
 assert(rejectedAlias, 'credential alias rejects path-like input');
+
+// ── browser proxy authorization (pure policy; no network or vault access) ──
+const proxyRequest = (overrides = {}) => proxyRequestDenial({
+  proxyPath: '/bw-api', method: 'GET', pathname: '/sync',
+  authorization: 'Bearer active-session', sessionToken: 'active-session',
+  pinSet: true, unlocked: true, sameOrigin: true, ...overrides,
+});
+assertEqual(proxyRequest(), null, 'vault sync is allowed for an authenticated unlocked session');
+assertEqual(proxyRequest({ sessionToken: null, issuedTokens: ['just-issued-token'], authorization: 'Bearer just-issued-token' }), null, 'initial vault sync allows only a token just issued by the same-origin login flow');
+assertEqual(proxyRequest({ authorization: 'Bearer other-session' })?.status, 401, 'vault proxy rejects a different bearer token');
+assertEqual(proxyRequest({ unlocked: false })?.status, 401, 'vault proxy requires PIN unlock when configured');
+assertEqual(proxyRequest({ pathname: '/ciphers/delete-admin', method: 'GET' })?.status, 403, 'vault proxy rejects unsupported method/path combinations');
+for (const [method, pathname] of [
+  ['PUT', '/ciphers/delete'], ['PUT', '/ciphers/delete-admin'], ['DELETE', '/ciphers/delete'],
+  ['PUT', '/ciphers/move'], ['PUT', '/ciphers/restore'],
+]) {
+  assertEqual(proxyRequest({ method, pathname }), null, `vault proxy allows the Web UI ${method} ${pathname} operation`);
+}
+assertEqual(proxyRequest({ pathname: '/organizations' })?.status, 403, 'vault proxy rejects unlisted Bitwarden APIs');
+assertEqual(proxyRequest({ pathname: '/ciphers/item/extra', method: 'GET' })?.status, 403, 'vault proxy rejects nested item routes');
+assertEqual(proxyRequest({ pathname: '/ciphers/00000000-0000-4000-8000-000000000001', method: 'DELETE', sameOrigin: false })?.status, 403, 'vault proxy rejects cross-origin writes');
+assertEqual(proxyRequest({ proxyPath: '/bw-identity', pathname: '/connect/token', method: 'POST', sameOrigin: true, sessionToken: null, authorization: null, pinSet: false, unlocked: false }), null, 'identity proxy allows same-origin token login without an existing session');
+assertEqual(proxyRequest({ proxyPath: '/bw-identity', pathname: '/admin/users', method: 'POST', sameOrigin: true }), { status: 403, message: 'Identity route is not allowed.' }, 'identity proxy rejects unlisted routes');
 
 // ── manage move (mocked remote API; never connects to a vault) ──
 const moveFixture = () => {

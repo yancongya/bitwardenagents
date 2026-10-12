@@ -11,6 +11,7 @@ import crypto from 'node:crypto';
 import { execSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { migrateApiKeyCredentials, verifyPin } from './agent-harness/core/session.js';
+import { proxyRequestDenial } from './agent-harness/core/proxy-policy.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const DIST = path.join(__dirname, 'dist');
@@ -23,10 +24,12 @@ const SYNC_CACHE_MAX_AGE = 10 * 60 * 1000;
 
 let unlockedApiKeyCredentials = null;
 const unlockedClients = new Map();
+const issuedApiTokens = new Map();
 const UNLOCK_TTL_MS = 15 * 60 * 1000;
 const pinFailures = new Map();
 const PIN_MAX_FAILURES = 5;
 const PIN_WINDOW_MS = 60 * 1000;
+const MAX_ISSUED_API_TOKENS = 32;
 
 function getUnlockToken(req) {
   const match = String(req.headers.cookie || '').match(/(?:^|;\s*)bwvault_unlock=([^;]+)/);
@@ -124,12 +127,39 @@ function proxyRequest(proxyPath, req, res) {
   const targetPath = req.url.replace(conf.strip, '') || '/';
   const url = new URL(targetPath, conf.target);
 
+  let currentSession = null;
+  try { currentSession = JSON.parse(fs.readFileSync(SESSION_FILE, 'utf8')); } catch {}
+  const now = Date.now();
+  for (const [token, expiresAt] of issuedApiTokens) {
+    if (expiresAt <= now) issuedApiTokens.delete(token);
+  }
+  const issuedTokens = [...issuedApiTokens]
+    .filter(([, expiresAt]) => expiresAt > now)
+    .map(([token]) => token);
+  const pinFile = path.join(path.dirname(SESSION_FILE), 'pin.json');
+  const denial = proxyRequestDenial({
+    proxyPath,
+    method: req.method,
+    pathname: url.pathname,
+    authorization: req.headers.authorization,
+    sessionToken: currentSession?.accessToken,
+    issuedTokens,
+    pinSet: fs.existsSync(pinFile),
+    unlocked: hasClientUnlock(req),
+    sameOrigin: sameOrigin(req),
+  });
+  if (denial) {
+    res.writeHead(denial.status, {
+      'Content-Type': 'application/json; charset=utf-8',
+      'Cache-Control': 'no-store',
+    });
+    res.end(JSON.stringify({ ok: false, error: denial.message }));
+    return;
+  }
+
   const isVaultSync = proxyPath.endsWith('-api') && req.method === 'GET' && url.pathname === '/sync';
   let cacheAuthorized = false;
-  try {
-    const currentSession = JSON.parse(fs.readFileSync(SESSION_FILE, 'utf8'));
-    cacheAuthorized = req.headers.authorization === `Bearer ${currentSession.accessToken}`;
-  } catch {}
+  cacheAuthorized = req.headers.authorization === `Bearer ${currentSession?.accessToken}`;
   if (isVaultSync && cacheAuthorized && fs.existsSync(SYNC_CACHE_FILE)) {
     try {
       const stat = fs.statSync(SYNC_CACHE_FILE);
@@ -148,12 +178,40 @@ function proxyRequest(proxyPath, req, res) {
   const headers = { ...req.headers, host: url.host };
   delete headers['x-forwarded-for'];
   delete headers['x-real-ip'];
-
+  const isTokenLogin = proxyPath.endsWith('-identity')
+    && req.method === 'POST' && url.pathname === '/connect/token';
+  if (isTokenLogin) delete headers['accept-encoding'];
   const proxyReq = https.request(url, {
     method: req.method,
     headers,
     timeout: 30000,
   }, (proxyRes) => {
+    if (isTokenLogin) {
+      const chunks = [];
+      proxyRes.on('data', chunk => chunks.push(chunk));
+      proxyRes.on('end', () => {
+        const body = Buffer.concat(chunks);
+        if (proxyRes.statusCode >= 200 && proxyRes.statusCode < 300) {
+          try {
+            const tokenResponse = JSON.parse(body.toString('utf8'));
+            if (typeof tokenResponse.access_token === 'string' && tokenResponse.access_token.length > 0) {
+              const reportedLifetime = Number(tokenResponse.expires_in);
+              const lifetimeSeconds = Number.isFinite(reportedLifetime) && reportedLifetime > 0
+                ? Math.min(reportedLifetime, 86400)
+                : 900;
+              const lifetime = lifetimeSeconds * 1000;
+              issuedApiTokens.set(tokenResponse.access_token, Date.now() + lifetime);
+              while (issuedApiTokens.size > MAX_ISSUED_API_TOKENS) {
+                issuedApiTokens.delete(issuedApiTokens.keys().next().value);
+              }
+            }
+          } catch { /* Do not affect the upstream response if it is not JSON. */ }
+        }
+        res.writeHead(proxyRes.statusCode, { ...proxyRes.headers, 'cache-control': 'no-store' });
+        res.end(body);
+      });
+      return;
+    }
     if (isVaultSync && proxyRes.statusCode === 200) {
       const chunks = [];
       proxyRes.on('data', chunk => { chunks.push(chunk); res.write(chunk); });
@@ -318,6 +376,7 @@ const server = http.createServer((req, res) => {
     try {
       if (fs.existsSync(SESSION_FILE)) fs.unlinkSync(SESSION_FILE);
       unlockedClients.clear();
+      issuedApiTokens.clear();
       unlockedApiKeyCredentials = null;
       res.writeHead(200, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({ ok: true }));
@@ -330,7 +389,7 @@ const server = http.createServer((req, res) => {
 
   // --- Bitwarden proxy ---
   for (const prefix of Object.keys(PROXIES)) {
-    if (req.url.startsWith(prefix)) {
+    if (req.url === prefix || req.url.startsWith(`${prefix}/`)) {
       return proxyRequest(prefix, req, res);
     }
   }
