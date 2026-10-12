@@ -29,12 +29,12 @@ function requireSession() {
 /** Build {ciphers, client, symmetricKey} for a mutation run. */
 async function prepare(opts, { forceRemote = false } = {}) {
   const s = requireSession();
-  const { ciphers } = await syncVault(s, (d, t) => {
+  const { ciphers, folders } = await syncVault(s, (d, t) => {
     if (!opts.json) out.progress(d, t, 'decrypting');
   }, { forceRemote });
   const client = createClient(s.serverUrl);
   client.accessToken = s.accessToken;
-  return { ciphers, client, symmetricKey: s.symmetricKey, session: s };
+  return { ciphers, folders, client, symmetricKey: s.symmetricKey, session: s };
 }
 
 /** Encrypt a folder name for the zero-knowledge API. */
@@ -126,6 +126,53 @@ export async function dedup(opts) {
       `${failed.length ? ` (${failed.length} failed)` : ''}. Recoverable from trash.`,
     summary: { groups: plan.length, deleted: results.length - failed.length, failed: failed.length },
     results,
+  };
+}
+
+/** Move exact item IDs to a folder or No Folder. Sync is always remote-first. */
+export async function move(opts, { prepareFn = prepare } = {}) {
+  if (!Array.isArray(opts.ids) || opts.ids.length === 0 || opts.ids.some((id) => !id)) {
+    throw new Error('At least one --id is required');
+  }
+  if (!opts.folderId) throw new Error('--folder-id is required (use "none" for No Folder)');
+
+  const ids = opts.ids;
+  if (new Set(ids).size !== ids.length) throw new Error('Duplicate --id values are not allowed');
+  const { ciphers, folders, client } = await prepareFn(opts, { forceRemote: true });
+  const targetId = opts.folderId.toLowerCase() === 'none' ? null : opts.folderId;
+  if (targetId && !folders.some((folder) => folder.id === targetId)) {
+    throw new Error('Target folder was not found in the remotely synced vault');
+  }
+
+  const byId = new Map(ciphers.filter((cipher) => !cipher.deletedDate).map((cipher) => [cipher.id, cipher]));
+  const results = [];
+  for (const id of ids) {
+    const cipher = byId.get(id);
+    if (!cipher) {
+      results.push({ status: 'failed' });
+      continue;
+    }
+    try {
+      // Use the server's dedicated move endpoint. It changes only FolderId and
+      // leaves the encrypted cipher payload and per-item Key untouched.
+      if (opts.apply) await client.bulkMoveCiphersToFolder([id], targetId);
+      results.push({ status: opts.apply ? 'moved' : 'planned' });
+    } catch {
+      // Deliberately discard error text: API errors can contain identifiers or payload details.
+      results.push({ status: 'failed' });
+    }
+  }
+
+  const moved = results.filter((result) => result.status === 'moved').length;
+  const planned = results.filter((result) => result.status === 'planned').length;
+  const failed = results.filter((result) => result.status === 'failed').length;
+  return {
+    ok: failed === 0,
+    dryRun: !opts.apply,
+    summary: { requested: ids.length, moved, wouldMove: planned, failed },
+    message: opts.apply
+      ? `Moved ${moved} item(s); ${failed} failed.`
+      : `Dry run: ${planned} item(s) would move; ${failed} failed. Add --apply to execute.`,
   };
 }
 

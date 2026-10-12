@@ -56,6 +56,7 @@ ${out.color('GROUPS', 'bold')}
 
   ${out.color('manage', 'green')}    Mutating operations (all support --dry-run)
     dedup     Merge duplicate entries (soft-delete, recoverable)
+    move      Move exact item IDs to a folder or No Folder (remote sync; --apply to write)
     trash     list | restore | purge  (purge is irreversible)
     folders   create | rename | delete
 
@@ -290,8 +291,9 @@ async function dispatchAnalyze(args, ctx) {
 async function dispatchManage(args, ctx) {
   const [cmd, ...rest] = args;
   const opts = parseOptions(rest, {
-    id: 'string',
+    id: cmd === 'move' ? { type: 'string', multiple: true } : 'string',
     name: 'string',
+    'folder-id': 'string',
     'dry-run': 'boolean',
     apply: 'boolean',
     yes: 'boolean',
@@ -301,13 +303,15 @@ async function dispatchManage(args, ctx) {
   switch (cmd) {
     case 'dedup':
       return manageCmd.dedup(common);
+    case 'move':
+      return manageCmd.move({ ...common, ids: opts.id, folderId: opts['folder-id'] });
     case 'trash':
       return manageCmd.trash({ ...common, action: rest.find((a) => !a.startsWith('-')) });
     case 'folders':
       return manageCmd.folders({ ...common, action: rest.find((a) => !a.startsWith('-')) });
     default:
       out.fail(`Unknown manage command: ${cmd}`);
-      process.stdout.write('Available: dedup, trash, folders\n');
+      process.stdout.write('Available: dedup, move, trash, folders\n');
       return 1;
   }
 }

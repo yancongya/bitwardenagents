@@ -69,6 +69,7 @@ prompt — never as bare command arguments.
 | `analyze` | `duplicates` | Duplicate and same-site clusters |
 | `analyze` | `urls` | Dead-link candidates |
 | `manage` | `dedup` | Merge duplicate entries (`--dry-run` by default) |
+| `manage` | `move` | Move exact item IDs to a folder or No Folder; remote sync, dry-run by default |
 | `manage` | `trash` | `list` · `restore` · `purge` |
 | `manage` | `folders` | `create` · `rename` · `delete` |
 | `credential` | `list` | List stable aliases and metadata; never returns secrets |
@@ -86,6 +87,21 @@ printf '%s' "$SECRET" | node bin/bwvault.js credential set \
 
 node bin/bwvault.js credential list --json
 ```
+
+### Move vault items
+
+```bash
+# Preview one or more exact item IDs; use --folder-id none for No Folder
+node bin/bwvault.js manage move --id <item-id> --id <item-id> --folder-id <folder-id> --json
+
+# Apply the move after reviewing the count-only preview
+node bin/bwvault.js manage move --id <item-id> --folder-id none --apply --json
+```
+
+Every run forces a remote sync first. The command uses Bitwarden's dedicated
+move API, so it changes the folder assignment without rewriting encrypted
+fields or per-item keys. It reports only aggregate counts, continues after
+individual failures, and never deletes or purges items.
 
 ### Global flags
 

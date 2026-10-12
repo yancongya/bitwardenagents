@@ -17,9 +17,9 @@ description: 使用持久化 Bitwardenagents/bwvault CLI 管理密码库、稳�
 ## 安全规则
 
 1. 不输出密码、token、API key、PIN、会话材料、解密后的 vault 字段或请求载荷。仅当具体任务需要，并获明确授权时使用 `--reveal`；把结果直接送往目标进程，不写日志或报告。
-2. 密值只经 stdin、隐藏输入或短期环境变量传入，绝不放在命令参数、仓库、Skill 或文档里。凭据以稳定 alias 引用，不记录 cipher id。
+2. 密值只经 stdin、隐藏输入或短期环境变量传入，绝不放在命令参数、仓库、Skill 或文档里。凭据以稳定 alias 引用；条目 ID 仅在需要精确 CLI 操作时临时使用，不写入报告或文档。
 3. 写操作先预览，用户已授权该变更时才加 `--apply`。软删除可恢复；`purge` 不可逆且需 `--yes`。
-4. 凭据、回收站、去重与文件夹写入在提交前会强制向 Bitwarden 远端同步；访问令牌过期时通过持久 API Key 自动续期，远端校验或续期失败则拒绝写入，不使用本地缓存继续操作。
+4. 凭据、回收站、去重、文件夹和条目移动操作均强制向 Bitwarden 远端同步；访问令牌过期时通过持久 API Key 自动续期，远端校验或续期失败则拒绝写入，不使用本地缓存继续操作。
 5. 生产诊断默认只读。认证、会话、Docker 或部署代码变更后，执行本项目测试与构建，再核验实际运行版本及安全边界。
 6. 不因一次 `401` 就删除会话、重置 vault 或索取主密码。先重试一次，再检查持久 API key 格式与错误原因。
 
@@ -37,7 +37,9 @@ bwvault credential get --alias svc.api.token --reveal --json
 printf '%s' "$SECRET" | bwvault credential set --alias svc.api.token --username svc --apply
 ```
 
-代表性只读命令：`bwvault vault list --json`、`bwvault vault search QUERY`、`bwvault analyze health --json`、`bwvault analyze duplicates --json`。管理命令包括 `manage dedup`、`manage trash list/restore/purge` 和 `manage folders create/rename/delete`；执行前使用各命令帮助检查精确参数。
+代表性只读命令：`bwvault vault list --json`、`bwvault vault search QUERY`、`bwvault analyze health --json`、`bwvault analyze duplicates --json`。管理命令包括 `manage dedup`、`manage move`、`manage trash list/restore/purge` 和 `manage folders create/rename/delete`；执行前使用各命令帮助检查精确参数。
+
+`manage move` 使用一个或多个精确 `--id` 与 `--folder-id <id|none>`，每次都会先强制远端同步。默认只预览聚合数量；只有显式添加 `--apply` 才逐条更新。输出不含条目名称、ID或 API 错误正文；批量失败只报告数量，且移动流程不会删除或 purge 条目。
 
 ## 持久会话
 

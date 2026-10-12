@@ -28,6 +28,6 @@
 | `commands/auth.js` | login (API Key + password) · logout · status |
 | `commands/vault.js` | sync · list · search · get · folders · export |
 | `commands/analyze.js` | health · duplicates · urls |
-| `commands/manage.js` | dedup · trash · folders (all dry-run by default) |
+| `commands/manage.js` | dedup · move · trash · folders (writes require `--apply`; move always forces remote sync) |
 | `utils/repl.js` | Interactive REPL (default when no args) |
 | `utils/secrets.js` | Safe password intake (TTY / stdin / env) |

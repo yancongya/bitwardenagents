@@ -353,6 +353,7 @@ GROUPS
 
   manage    Mutating operations (all support --dry-run)
     dedup     Merge duplicate entries (soft-delete, recoverable)
+    move      Move exact item IDs to a folder or No Folder (remote sync; --apply to write)
     trash     list | restore | purge  (purge is irreversible)
     folders   create | rename | delete
 
@@ -425,6 +426,10 @@ bwvault manage dedup --json
 
 # 4) 确认无误后才真正执行
 bwvault manage dedup --json --apply
+
+# 5) 按精确条目 ID 预览移动；No Folder 使用 folder-id none
+bwvault manage move --id <item-id> --folder-id <folder-id> --json
+bwvault manage move --id <item-id> --folder-id none --apply --json
 ```
 
 **Agent 常用环境变量**

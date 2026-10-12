@@ -11,6 +11,7 @@ import { redact, isSensitive, digestSecret, strengthBucket } from '../core/secur
 import { sessionStatus, saveSession, loadSession, clearSession } from '../core/session.js';
 import { emit } from '../core/display.js';
 import { credentialItemName, normalizeAlias } from '../commands/credential.js';
+import { move as moveItems } from '../commands/manage.js';
 
 let pass = 0, fail = 0;
 
@@ -77,6 +78,66 @@ assertEqual(credentialItemName('nas.ssh'), 'Agent Credential: nas.ssh', 'credent
 let rejectedAlias = false;
 try { normalizeAlias('../secret'); } catch { rejectedAlias = true; }
 assert(rejectedAlias, 'credential alias rejects path-like input');
+
+// ── manage move (mocked remote API; never connects to a vault) ──
+const moveFixture = () => {
+  const original = {
+    Id: 'fixture-item-1', Type: 1, Name: 'enc-name', FolderId: null,
+    Key: 'fixture-item-key', Login: { Password: 'enc-password', Fido2Credentials: [{ CredentialId: 'fixture-key' }] },
+    Fields: [{ Name: 'enc-field', Value: 'enc-value' }],
+  };
+  const calls = [];
+  let remoteSync = false;
+  const dependencies = {
+    prepareFn: async (_opts, config) => {
+      remoteSync = config.forceRemote === true;
+      return {
+        ciphers: [
+          { id: 'fixture-item-1', deletedDate: null, _original: { _original: original } },
+          { id: 'fixture-item-fail', deletedDate: null, _original: { _original: original } },
+        ],
+        folders: [{ id: 'fixture-folder-1', name: 'fixture-folder-name' }],
+        client: { bulkMoveCiphersToFolder: async (ids, folderId) => {
+          calls.push({ ids, folderId });
+          if (ids[0] === 'fixture-item-fail') throw new Error('sensitive API detail');
+        } },
+      };
+    },
+  };
+  return { original, calls, dependencies, didSync: () => remoteSync };
+};
+
+{
+  const fixture = moveFixture();
+  const result = await moveItems({ ids: ['fixture-item-1'], folderId: 'fixture-folder-1' }, fixture.dependencies);
+  assert(fixture.didSync(), 'manage move forces a remote sync during dry-run');
+  assert(fixture.calls.length === 0, 'manage move dry-run performs no API update');
+  assert(result.dryRun && result.summary.wouldMove === 1, 'manage move dry-run reports planned item count');
+  assert(!JSON.stringify(result).includes('fixture-item-1'), 'manage move output omits item IDs');
+}
+
+{
+  const fixture = moveFixture();
+  const result = await moveItems({ ids: ['fixture-item-1'], folderId: 'fixture-folder-1', apply: true }, fixture.dependencies);
+  assert(fixture.didSync() && fixture.calls.length === 1, 'manage move apply forces remote sync and moves the exact item');
+  assert(JSON.stringify(fixture.calls[0]?.ids) === JSON.stringify(['fixture-item-1'])
+    && fixture.calls[0]?.folderId === 'fixture-folder-1', 'manage move sends exact ID and target to the dedicated move API');
+  assert(typeof fixture.calls[0]?.cipher === 'undefined'
+    && fixture.original.Key === 'fixture-item-key' && fixture.original.Login.Password === 'enc-password',
+  'manage move does not rewrite cipher fields or its per-item key');
+  assert(result.ok && result.summary.moved === 1 && !JSON.stringify(result).includes('fixture-item-1'),
+    'manage move reports only a non-sensitive success summary');
+}
+
+{
+  const fixture = moveFixture();
+  const result = await moveItems({ ids: ['fixture-item-fail', 'fixture-item-1'], folderId: 'none', apply: true }, fixture.dependencies);
+  assert(result.summary.failed === 1 && result.summary.moved === 1, 'manage move reports per-item batch failures');
+  assert(fixture.calls.length === 2 && fixture.calls[1].folderId === null,
+    'manage move supports No Folder and continues after an item failure');
+  assert(!JSON.stringify(result).includes('fixture-item-fail') && !JSON.stringify(result).includes('sensitive API detail'),
+    'manage move failure summary omits IDs and API error details');
+}
 
 // ── summary ──
 console.log(`\n1..${pass + fail}`);
