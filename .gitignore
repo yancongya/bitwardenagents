@@ -49,3 +49,4 @@ __pycache__/
 
 # Browser automation artifacts
 .playwright-cli/
+.workforce/
