@@ -12,8 +12,8 @@ import { sessionStatus, saveSession, loadSession, clearSession } from '../core/s
 import { emit } from '../core/display.js';
 import { credentialItemName, normalizeAlias } from '../commands/credential.js';
 import { move as moveItems } from '../commands/manage.js';
-import { proxyRequestDenial } from '../core/proxy-policy.js';
 import { BitwardenClient } from '../../src/bitwarden-api.js';
+import { proxyRequestDenial, proxyScopesForToken, PROXY_SCOPES } from '../core/proxy-policy.js';
 
 let pass = 0, fail = 0;
 
@@ -103,6 +103,23 @@ assertEqual(proxyRequest({ pathname: '/ciphers/item/extra', method: 'GET' })?.st
 assertEqual(proxyRequest({ pathname: '/ciphers/00000000-0000-4000-8000-000000000001', method: 'DELETE', sameOrigin: false })?.status, 403, 'vault proxy rejects cross-origin writes');
 assertEqual(proxyRequest({ proxyPath: '/bw-identity', pathname: '/connect/token', method: 'POST', sameOrigin: true, sessionToken: null, authorization: null, pinSet: false, unlocked: false }), null, 'identity proxy allows same-origin token login without an existing session');
 assertEqual(proxyRequest({ proxyPath: '/bw-identity', pathname: '/admin/users', method: 'POST', sameOrigin: true }), { status: 403, message: 'Identity route is not allowed.' }, 'identity proxy rejects unlisted routes');
+
+const scopedProxyRequest = (overrides = {}) => proxyRequest({ grantedScopes: [PROXY_SCOPES.READ], ...overrides });
+assertEqual(scopedProxyRequest()?.status, 403, 'read scope cannot read vault sync payload');
+assertEqual(scopedProxyRequest({ pathname: '/folders' }), null, 'read scope allows folder metadata');
+assertEqual(scopedProxyRequest({ pathname: '/ciphers', grantedScopes: [PROXY_SCOPES.SECRETS] }), null, 'secrets scope allows cipher payload');
+assertEqual(scopedProxyRequest({ pathname: '/ciphers/00000000-0000-4000-8000-000000000001' })?.status, 403, 'read scope cannot read item secrets');
+assertEqual(scopedProxyRequest({ method: 'POST', pathname: '/ciphers', grantedScopes: [PROXY_SCOPES.WRITE] }), null, 'write scope allows cipher writes');
+assertEqual(scopedProxyRequest({ method: 'POST', pathname: '/ciphers', grantedScopes: [PROXY_SCOPES.READ] })?.status, 403, 'read scope cannot write ciphers');
+assertEqual(scopedProxyRequest({ method: 'PUT', pathname: '/ciphers/delete', grantedScopes: [PROXY_SCOPES.WRITE] })?.status, 403, 'write scope cannot delete ciphers');
+assertEqual(scopedProxyRequest({ method: 'PUT', pathname: '/ciphers/delete', grantedScopes: [PROXY_SCOPES.DELETE] }), null, 'delete scope allows cipher deletion');
+assertEqual(scopedProxyRequest({ method: 'DELETE', pathname: '/folders/00000000-0000-4000-8000-000000000001', grantedScopes: [PROXY_SCOPES.WRITE] })?.status, 403, 'write scope cannot delete a folder');
+assertEqual(scopedProxyRequest({ method: 'DELETE', pathname: '/folders/00000000-0000-4000-8000-000000000001', grantedScopes: [PROXY_SCOPES.DELETE] }), null, 'delete scope allows folder deletion');
+assertEqual(scopedProxyRequest({ grantedScopes: undefined }), null, 'omitted scopes preserve legacy UI behavior');
+assertEqual(proxyScopesForToken({ authorization: 'Bearer saved-session', sessionToken: 'saved-session', configuredScopes: [PROXY_SCOPES.READ] }), [PROXY_SCOPES.READ], 'configured scope applies to persisted server session token');
+assertEqual(proxyScopesForToken({ authorization: 'Bearer saved-session', sessionToken: 'saved-session' }), undefined, 'no configured scopes preserve saved session behavior');
+assertEqual(proxyScopesForToken({ authorization: 'Bearer issued-token', issuedTokenScopes: new Map([['issued-token', [PROXY_SCOPES.SECRETS]]]) }), [PROXY_SCOPES.SECRETS], 'issued API token gets its server-side scope grant');
+assertEqual(proxyScopesForToken({ authorization: 'Bearer attacker-token', sessionToken: 'saved-session', configuredScopes: [PROXY_SCOPES.READ] }), undefined, 'unrecognized bearer token receives no scope grant');
 
 // ── manage move (mocked remote API; never connects to a vault) ──
 const moveFixture = ({ moveErrors = {}, waitFn = async () => {}, randomFn = () => 0 } = {}) => {
