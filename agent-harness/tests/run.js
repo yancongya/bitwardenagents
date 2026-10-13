@@ -208,12 +208,12 @@ const moveFixture = ({ moveErrors = {}, waitFn = async () => {}, randomFn = () =
 
 {
   const originalFetch = globalThis.fetch;
-  const client = new BitwardenClient('http://127.0.0.1');
-  client.accessToken = 'test-only-token';
   globalThis.fetch = async () => new Response('private response body', {
     status: 429,
     headers: { 'Retry-After': '2' },
   });
+  const client = new BitwardenClient('http://127.0.0.1');
+  client.accessToken = 'test-only-token';
   try {
     let caught;
     try {
@@ -232,12 +232,12 @@ const moveFixture = ({ moveErrors = {}, waitFn = async () => {}, randomFn = () =
 
 {
   const originalFetch = globalThis.fetch;
-  const client = new BitwardenClient('http://127.0.0.1');
-  client.accessToken = 'test-only-token';
   globalThis.fetch = async () => new Response('', {
     status: 429,
     headers: { 'Retry-After': '-1' },
   });
+  const client = new BitwardenClient('http://127.0.0.1');
+  client.accessToken = 'test-only-token';
   try {
     let caught;
     try {

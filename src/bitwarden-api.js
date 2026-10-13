@@ -19,7 +19,7 @@ const SERVERS = IS_BROWSER ? {
 } : {};  // Node: no proxy, use absolute URLs (else branch)
 
 export class BitwardenClient {
-  constructor(serverUrl = '', existingDeviceId = null) {
+  constructor(serverUrl = '', existingDeviceId = null, options = {}) {
     const config = SERVERS[serverUrl];
     if (config) {
       this.apiUrl = config.apiUrl;
@@ -31,6 +31,8 @@ export class BitwardenClient {
     }
     this.accessToken = null;
     this.refreshToken = null;
+    this.requestTimeoutMs = options.requestTimeoutMs ?? 30000;
+    this.fetchImpl = options.fetchImpl ?? globalThis.fetch;
     // Keep the identity API client version aligned with the current Bitwarden
     // web client. Older versions can be rejected by newer auth policies.
     this.clientVersion = '2026.8.1';
@@ -669,8 +671,10 @@ export class BitwardenClient {
         'Bitwarden-Client-Version': this.clientVersion,
         'Bitwarden-Client-Name': 'web',
       };
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), this.requestTimeoutMs);
       try {
-        const res = await fetch(url, { ...options, headers });
+        const res = await this.fetchImpl(url, { ...options, headers, signal: controller.signal });
         if (res.status === 401 && this.refreshToken && attempt === 0) {
           await this.refreshAccessToken();
           continue;
@@ -682,6 +686,8 @@ export class BitwardenClient {
       } catch (err) {
         // Network error (offline, DNS, timeout) — retry unless last attempt
         if (attempt === maxRetries) throw err;
+      } finally {
+        clearTimeout(timeout);
       }
       // Exponential backoff: 1s → 2s → 4s + random jitter (0-500ms)
       const delay = Math.min(1000 * Math.pow(2, attempt), 8000);
@@ -693,16 +699,23 @@ export class BitwardenClient {
   async refreshAccessToken() {
     if (!this._refreshPromise) {
       this._refreshPromise = (async () => {
-        const res = await fetch(`${this.identityUrl}/connect/token`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-          body: new URLSearchParams({ grant_type: 'refresh_token', client_id: 'web', refresh_token: this.refreshToken }),
-        });
-        if (!res.ok) throw new Error(`Session renewal failed: ${res.status}`);
-        const data = await res.json();
-        this.accessToken = data.access_token;
-        this.refreshToken = data.refresh_token || this.refreshToken;
-        await this.onTokenRefresh?.();
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), this.requestTimeoutMs);
+        try {
+          const res = await this.fetchImpl(`${this.identityUrl}/connect/token`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: new URLSearchParams({ grant_type: 'refresh_token', client_id: 'web', refresh_token: this.refreshToken }),
+            signal: controller.signal,
+          });
+          if (!res.ok) throw new Error(`Session renewal failed: ${res.status}`);
+          const data = await res.json();
+          this.accessToken = data.access_token;
+          this.refreshToken = data.refresh_token || this.refreshToken;
+          await this.onTokenRefresh?.();
+        } finally {
+          clearTimeout(timeout);
+        }
       })().finally(() => { this._refreshPromise = null; });
     }
     return this._refreshPromise;
