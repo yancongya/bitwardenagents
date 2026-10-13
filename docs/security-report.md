@@ -110,3 +110,10 @@
 - 修复：`manage move --apply` 在写入后再强制远端同步，逐条核对实际 `folderId`；只有回读匹配目标才计为 moved，写入未生效或无法核验会进入脱敏失败类别，不会宣称完成。
 - 验证：Agent Harness 55 项通过，覆盖远端归属一致、上游返回成功但回读未变、核验同步失败等路径；package smoke test、cache-sync、语法检查和 `git diff --check` 通过。提交 `8c3be157462056c665f6dfdc9c9f2561c795ece3` 已推送并部署为 `bwvault:release-8c3be157462056c6`；部署脚本确认容器健康且 `/data` 挂载保持不变，Agent Ops 二次检查确认新镜像正在运行。SkillDo 中央 `bwvault-cli` 已更新到同一提交，远端 Skill 内容哈希匹配。
 - 后续：库中仍有 485 条未分类记录；本轮未再批量重试旧的分类移动请求，避免基于不完整的旧条目清单误操作。后续按清晰线索分批预览并用新版本回读验证。
+
+## 2026-10-13 Web 代理能力 scope 配置（待发布）
+
+- 变更：增加服务端 `BWVAULT_PROXY_SCOPES` 进程级能力配置。允许值为 `vault:read`、`vault:secrets`、`vault:write`、`vault:delete`；授权只从服务端配置、已保存 session token 或进程签发的短期 token 状态解析，不读取客户端 header/query 作为 scope 来源。未设置变量时保留既有 Web 会话行为。
+- 路由边界：`/folders` 元数据读取使用 `vault:read`；`/sync`、密码库条目读取使用 `vault:secrets`；新增/修改使用 `vault:write`；删除路由以及 `DELETE` 请求使用 `vault:delete`。
+- 限制：配置是进程级全局能力上限，不是用户/角色授权系统，也不更改 Bitwarden 上游账号权限；未配置时不会启用新的 scope 限制。该变更尚未推送或部署，不能据此声称线上已受 scope 保护。
+- 验证：`node --check server.js`、`node agent-harness/tests/run.js` 和 `git diff --check` 通过；完整构建和 CI/线上验收待执行。

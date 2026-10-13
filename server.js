@@ -11,7 +11,7 @@ import crypto from 'node:crypto';
 import { execSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { migrateApiKeyCredentials, verifyPin } from './agent-harness/core/session.js';
-import { proxyRequestDenial } from './agent-harness/core/proxy-policy.js';
+import { proxyRequestDenial, proxyScopesForToken, PROXY_SCOPES } from './agent-harness/core/proxy-policy.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const DIST = path.join(__dirname, 'dist');
@@ -25,6 +25,12 @@ const SYNC_CACHE_MAX_AGE = 10 * 60 * 1000;
 let unlockedApiKeyCredentials = null;
 const unlockedClients = new Map();
 const issuedApiTokens = new Map();
+const validProxyScopes = Object.values(PROXY_SCOPES);
+const configuredProxyScopes = process.env.BWVAULT_PROXY_SCOPES === undefined
+  ? undefined
+  : [...new Set(process.env.BWVAULT_PROXY_SCOPES.split(',').map(value => value.trim()).filter(value =>
+    validProxyScopes.includes(value)))];
+const issuedApiTokenScopes = new Map();
 const UNLOCK_TTL_MS = 15 * 60 * 1000;
 const pinFailures = new Map();
 const PIN_MAX_FAILURES = 5;
@@ -95,6 +101,7 @@ async function renewApiKeySession(session, pin) {
   const token = await tokenResponse.json();
   session.accessToken = token.access_token;
   session.refreshToken = token.refresh_token || null;
+  if (configuredProxyScopes !== undefined) issuedApiTokenScopes.set(session.accessToken, configuredProxyScopes);
   session.savedAt = Date.now();
   fs.writeFileSync(SESSION_FILE, JSON.stringify(session, null, 2), { mode: 0o600 });
   return session;
@@ -131,7 +138,10 @@ function proxyRequest(proxyPath, req, res) {
   try { currentSession = JSON.parse(fs.readFileSync(SESSION_FILE, 'utf8')); } catch {}
   const now = Date.now();
   for (const [token, expiresAt] of issuedApiTokens) {
-    if (expiresAt <= now) issuedApiTokens.delete(token);
+    if (expiresAt <= now) {
+      issuedApiTokens.delete(token);
+      issuedApiTokenScopes.delete(token);
+    }
   }
   const issuedTokens = [...issuedApiTokens]
     .filter(([, expiresAt]) => expiresAt > now)
@@ -147,6 +157,12 @@ function proxyRequest(proxyPath, req, res) {
     pinSet: fs.existsSync(pinFile),
     unlocked: hasClientUnlock(req),
     sameOrigin: sameOrigin(req),
+    grantedScopes: proxyScopesForToken({
+      authorization: req.headers.authorization,
+      sessionToken: currentSession?.accessToken,
+      issuedTokenScopes: issuedApiTokenScopes,
+      configuredScopes: configuredProxyScopes,
+    }),
   });
   if (denial) {
     res.writeHead(denial.status, {
@@ -201,8 +217,11 @@ function proxyRequest(proxyPath, req, res) {
                 : 900;
               const lifetime = lifetimeSeconds * 1000;
               issuedApiTokens.set(tokenResponse.access_token, Date.now() + lifetime);
+              if (configuredProxyScopes !== undefined) issuedApiTokenScopes.set(tokenResponse.access_token, configuredProxyScopes);
               while (issuedApiTokens.size > MAX_ISSUED_API_TOKENS) {
-                issuedApiTokens.delete(issuedApiTokens.keys().next().value);
+                const oldestToken = issuedApiTokens.keys().next().value;
+                issuedApiTokens.delete(oldestToken);
+                issuedApiTokenScopes.delete(oldestToken);
               }
             }
           } catch { /* Do not affect the upstream response if it is not JSON. */ }
@@ -377,6 +396,7 @@ const server = http.createServer((req, res) => {
       if (fs.existsSync(SESSION_FILE)) fs.unlinkSync(SESSION_FILE);
       unlockedClients.clear();
       issuedApiTokens.clear();
+      issuedApiTokenScopes.clear();
       unlockedApiKeyCredentials = null;
       res.writeHead(200, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({ ok: true }));

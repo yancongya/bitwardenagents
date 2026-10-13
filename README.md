@@ -440,6 +440,9 @@ bwvault manage move --id <item-id> --folder-id none --apply --json
 | `BWVAULT_PIN` | Web 人工解锁 PIN；旧版 API Key 文件首次迁移时也会使用 |
 | `BWVAULT_PASSWORD` | 主密码（也可走 stdin） |
 | `BWVAULT_SECRET` | `credential set` 写入的服务凭据 |
+| `BWVAULT_PROXY_SCOPES` | 可选的 Web 代理能力限制，逗号分隔：`vault:read`、`vault:secrets`、`vault:write`、`vault:delete`；未设置时兼容现有 Web 会话 |
+
+`BWVAULT_PROXY_SCOPES` 是服务端进程级白名单，会应用于已保存会话和 Web 登录签发的短期令牌；它不接受客户端传入的权限值。设置后，`vault:read` 只允许读取文件夹元数据，`vault:secrets` 允许同步和读取密码库条目，`vault:write` 允许新增或修改，`vault:delete` 允许删除。权限限制不改变 Bitwarden 上游账号本身的授权。该配置是统一应用给所有 Web 会话的能力上限，不提供用户或角色级区分。
 
 > [!IMPORTANT]
 > 任何需要明文的操作都要求显式 `--reveal`。Agent 侧请在系统提示里禁止自动追加该 flag——脱敏输出已经足够做去重与健康判断。
