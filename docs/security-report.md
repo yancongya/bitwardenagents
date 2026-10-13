@@ -141,3 +141,9 @@
 - 第二批仅按精确服务域名匹配未归类的登录条目：社交与通信 2 条、媒体与娱乐 2 条。移动前每个分类组均通过 `bwvault manage move` 预览；执行后 CLI 强制远端同步并逐条回读，4/4 成功。
 - 两批合计 15 条明确域名条目已归档；活动条目仍为 727 条，未归类登录条目从上一批后的 252 条降至 248 条，待人工复核仍为 180 条，已有文件夹归属增至 299 条。没有读取或输出任何密值。
 - 本批使用严格服务域名白名单；没有按模糊名称、用户名或多类冲突域名移动记录。剩余条目继续保留原位置，待更明确的分类依据。
+
+## 2026-10-14 GitHub Packages 只读权限探测
+
+- 通过 BWVault 中既有 `github.yancongya.pat` 做只读身份探测，GitHub `/user` 返回 200 且账户匹配；响应没有 classic OAuth scope 列表。密钥值没有写入输出或文档。
+- 对 Agent Ops 与 Storage Manager 容器包请求 GHCR pull token exchange 均返回 200，但后续包 tag 查询分别返回 404 与 403，不能证明两个私有包可读。BWVault 中仍没有单独的 `github.yancongya.ghcr-read` 别名。
+- 结论：普通 GitHub 身份验证已通过，GHCR 私有包读取未通过/未证实；隔离 NAS 镜像测试仍待一个具备 `read:packages` 且有目标包读取权的专用凭据。不要把通用 GitHub PAT 当作已验证的 GHCR 凭据。
