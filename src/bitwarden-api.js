@@ -699,16 +699,23 @@ export class BitwardenClient {
   async refreshAccessToken() {
     if (!this._refreshPromise) {
       this._refreshPromise = (async () => {
-        const res = await fetch(`${this.identityUrl}/connect/token`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-          body: new URLSearchParams({ grant_type: 'refresh_token', client_id: 'web', refresh_token: this.refreshToken }),
-        });
-        if (!res.ok) throw new Error(`Session renewal failed: ${res.status}`);
-        const data = await res.json();
-        this.accessToken = data.access_token;
-        this.refreshToken = data.refresh_token || this.refreshToken;
-        await this.onTokenRefresh?.();
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), this.requestTimeoutMs);
+        try {
+          const res = await this.fetchImpl(`${this.identityUrl}/connect/token`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: new URLSearchParams({ grant_type: 'refresh_token', client_id: 'web', refresh_token: this.refreshToken }),
+            signal: controller.signal,
+          });
+          if (!res.ok) throw new Error(`Session renewal failed: ${res.status}`);
+          const data = await res.json();
+          this.accessToken = data.access_token;
+          this.refreshToken = data.refresh_token || this.refreshToken;
+          await this.onTokenRefresh?.();
+        } finally {
+          clearTimeout(timeout);
+        }
       })().finally(() => { this._refreshPromise = null; });
     }
     return this._refreshPromise;
