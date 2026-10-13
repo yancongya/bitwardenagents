@@ -25,6 +25,7 @@ COPY vite.config.js index.html ./
 COPY src ./src
 COPY public ./public
 COPY functions ./functions
+COPY agent-harness/core/proxy-policy.js ./agent-harness/core/proxy-policy.js
 COPY --from=deps /build/node_modules ./node_modules
 RUN ./node_modules/.bin/vite build
 
