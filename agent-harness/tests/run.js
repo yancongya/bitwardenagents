@@ -13,6 +13,7 @@ import { emit } from '../core/display.js';
 import { credentialItemName, normalizeAlias } from '../commands/credential.js';
 import { move as moveItems } from '../commands/manage.js';
 import { proxyRequestDenial } from '../core/proxy-policy.js';
+import { BitwardenClient } from '../../src/bitwarden-api.js';
 
 let pass = 0, fail = 0;
 
@@ -104,7 +105,7 @@ assertEqual(proxyRequest({ proxyPath: '/bw-identity', pathname: '/connect/token'
 assertEqual(proxyRequest({ proxyPath: '/bw-identity', pathname: '/admin/users', method: 'POST', sameOrigin: true }), { status: 403, message: 'Identity route is not allowed.' }, 'identity proxy rejects unlisted routes');
 
 // ── manage move (mocked remote API; never connects to a vault) ──
-const moveFixture = () => {
+const moveFixture = ({ moveErrors = {}, waitFn = async () => {}, randomFn = () => 0 } = {}) => {
   const original = {
     Id: 'fixture-item-1', Type: 1, Name: 'enc-name', FolderId: null,
     Key: 'fixture-item-key', Login: { Password: 'enc-password', Fido2Credentials: [{ CredentialId: 'fixture-key' }] },
@@ -127,6 +128,8 @@ const moveFixture = () => {
         folders: [{ id: 'fixture-folder-1', name: 'fixture-folder-name' }],
         client: { bulkMoveCiphersToFolder: async (ids, folderId) => {
           calls.push({ ids, folderId });
+          const configuredErrors = moveErrors[ids[0]];
+          if (configuredErrors?.length) throw configuredErrors.shift();
           if (ids[0] === 'fixture-item-fail') throw new Error('sensitive API detail');
           if (ids[0] === 'fixture-item-forbidden') throw new Error('Bulk move failed: 403');
           if (ids[0] === 'fixture-item-network') throw Object.assign(new Error('sensitive network detail'), { code: 'ETIMEDOUT' });
@@ -135,6 +138,8 @@ const moveFixture = () => {
       };
     },
     verifyFn: async () => { verifyCalls++; return ciphers; },
+    waitFn,
+    randomFn,
   };
   return { original, calls, ciphers, dependencies, didSync: () => remoteSync, verifyCalls: () => verifyCalls };
 };
@@ -147,6 +152,87 @@ const moveFixture = () => {
   assert(fixture.verifyCalls() === 0, 'manage move dry-run skips post-write verification');
   assert(result.dryRun && result.summary.wouldMove === 1, 'manage move dry-run reports planned item count');
   assert(!JSON.stringify(result).includes('fixture-item-1'), 'manage move output omits item IDs');
+}
+
+{
+  const delays = [];
+  const fixture = moveFixture({
+    moveErrors: { 'fixture-item-1': [Object.assign(new Error('Bulk move failed: 429'), { statusCode: 429, retryAfterMs: 500 })] },
+    waitFn: async (ms) => delays.push(ms),
+  });
+  const result = await moveItems(
+    { ids: ['fixture-item-1'], folderId: 'fixture-folder-1', apply: true },
+    fixture.dependencies,
+  );
+  assert(result.ok && result.summary.moved === 1 && fixture.calls.length === 2,
+    'manage move retries a rate-limited item and verifies the eventual move');
+  assertEqual(delays, [500], 'manage move honors a valid Retry-After delay');
+}
+
+{
+  const delays = [];
+  const repeated429 = () => Object.assign(new Error('Bulk move failed: 429'), { statusCode: 429 });
+  const fixture = moveFixture({
+    moveErrors: { 'fixture-item-1': [repeated429(), repeated429(), repeated429(), repeated429()] },
+    waitFn: async (ms) => delays.push(ms),
+  });
+  const result = await moveItems(
+    { ids: ['fixture-item-1', 'fixture-item-forbidden'], folderId: 'fixture-folder-1', apply: true },
+    fixture.dependencies,
+  );
+  assert(result.summary.failures.rateLimited === 1 && result.summary.failures.rateLimitStopped === 1,
+    'manage move reports exhausted rate limit and stops the remaining batch');
+  assert(fixture.calls.length === 4 && delays.length === 3,
+    'manage move uses a finite retry limit and does not submit later items after 429');
+  assertEqual(delays, [1000, 2000, 4000], 'manage move applies bounded exponential backoff when Retry-After is absent');
+  assert(!JSON.stringify(result).includes('Retry-After') && !JSON.stringify(result).includes('429'),
+    'manage move keeps rate-limit response details out of its summary');
+}
+
+{
+  const originalFetch = globalThis.fetch;
+  const client = new BitwardenClient('http://127.0.0.1');
+  client.accessToken = 'test-only-token';
+  globalThis.fetch = async () => new Response('private response body', {
+    status: 429,
+    headers: { 'Retry-After': '2' },
+  });
+  try {
+    let caught;
+    try {
+      await client.bulkMoveCiphersToFolder(['test-only-id'], 'test-only-folder');
+    } catch (error) {
+      caught = error;
+    }
+    assert(caught?.statusCode === 429 && caught?.retryAfterMs === 2000,
+      'Bitwarden move API preserves only status and parsed Retry-After metadata for rate limits');
+    assert(!String(caught).includes('private response body'),
+      'Bitwarden move API does not copy the rate-limit response body into its error');
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+}
+
+{
+  const originalFetch = globalThis.fetch;
+  const client = new BitwardenClient('http://127.0.0.1');
+  client.accessToken = 'test-only-token';
+  globalThis.fetch = async () => new Response('', {
+    status: 429,
+    headers: { 'Retry-After': '-1' },
+  });
+  try {
+    let caught;
+    try {
+      await client.bulkMoveCiphersToFolder(['test-only-id'], 'test-only-folder');
+    } catch (error) {
+      caught = error;
+    }
+    assert(caught?.statusCode === 429 && caught?.retryAfterMs === undefined,
+      'Bitwarden move API ignores malformed Retry-After values so bounded backoff is used');
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
 }
 
 {
