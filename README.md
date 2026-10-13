@@ -517,6 +517,19 @@ A：`bw` 是官方通用 CLI；`bwvault` 专注**管理**任务——去重、�
 
 ## 参与贡献
 
+### 浏览器代理边界
+
+浏览器代理（自托管 Node、Cloudflare Pages Functions 和 Vite 开发代理）共用
+`agent-harness/core/proxy-policy.js` 中的精确方法/路径允许列表。未知路径或方法会在
+发起上游请求前拒绝；身份登录和所有写操作要求同源；Pages 与 Vite 的 Vault API 代理
+要求格式正确的 `Bearer` 头。Pages 会剥离 `Forwarded`、`Via`、`X-Forwarded-*`、`CF-*`
+以及常见客户端地址/重写路由头，同时保留 Bitwarden 客户端协议头。Vite 开发代理仅用于
+本机开发，并应用同一 Bearer 与路由契约。
+
+Cloudflare Pages Functions 不持有自托管服务的本地 session、PIN 或 NAS 状态，因此它
+只能校验 Bearer 头的格式，不能证明该 token 属于本地 NAS session，也不能执行本地 PIN
+解锁策略。需要这些策略时应使用自托管 Node 服务。
+
 1. Fork 本仓库
 2. 创建特性分支（`git checkout -b feature/AmazingFeature`）
 3. 提交改动（`git commit -m 'feat: add something'`）

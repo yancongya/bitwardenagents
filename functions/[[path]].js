@@ -1,9 +1,4 @@
-const PROXY_TARGETS = [
-  { prefix: '/bw-identity', target: 'https://identity.bitwarden.com' },
-  { prefix: '/bw-api', target: 'https://api.bitwarden.com' },
-  { prefix: '/bw-eu-identity', target: 'https://identity.bitwarden.eu' },
-  { prefix: '/bw-eu-api', target: 'https://api.bitwarden.eu' },
-];
+import { PROXY_TARGETS, proxyRouteDenial, stripProxyForwardingHeaders } from '../agent-harness/core/proxy-policy.js';
 
 export async function onRequest(context) {
   const url = new URL(context.request.url);
@@ -13,22 +8,27 @@ export async function onRequest(context) {
     return Response.redirect(url.toString(), 308);
   }
 
-  const match = PROXY_TARGETS.find(({ prefix }) => url.pathname === prefix || url.pathname.startsWith(`${prefix}/`));
+  const proxyPath = Object.keys(PROXY_TARGETS).find((prefix) => url.pathname === prefix || url.pathname.startsWith(`${prefix}/`));
 
-  if (!match) {
+  if (!proxyPath) {
     return context.next();
   }
 
-  const upstreamPath = url.pathname.slice(match.prefix.length) || '/';
-  const upstreamUrl = new URL(upstreamPath + url.search, match.target);
+  let sameOrigin = false;
+  try { sameOrigin = Boolean(context.request.headers.get('origin')) && new URL(context.request.headers.get('origin')).origin === url.origin; } catch {}
+  const upstreamPath = url.pathname.slice(proxyPath.length) || '/';
+  const denial = proxyRouteDenial({
+    proxyPath,
+    method: context.request.method,
+    pathname: upstreamPath,
+    authorization: context.request.headers.get('authorization'),
+    sameOrigin,
+    requireBearer: proxyPath.endsWith('-api'),
+  });
+  if (denial) return Response.json({ ok: false, error: denial.message }, { status: denial.status, headers: { 'Cache-Control': 'no-store' } });
+  const upstreamUrl = new URL(upstreamPath + url.search, PROXY_TARGETS[proxyPath]);
   const headers = new Headers(context.request.headers);
-  headers.delete('host');
-  headers.delete('cf-connecting-ip');
-  headers.delete('cf-ipcountry');
-  headers.delete('cf-ray');
-  headers.delete('cf-visitor');
-  headers.delete('x-forwarded-proto');
-  headers.delete('x-real-ip');
+  stripProxyForwardingHeaders(headers);
 
   return fetch(upstreamUrl, {
     method: context.request.method,
