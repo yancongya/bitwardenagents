@@ -125,14 +125,36 @@ Never pass it as a CLI argument.**
 
 Known alias registry (names only):
 
-| Alias | Purpose | Scope |
+| Alias | Purpose | Vault folder / scope |
 |---|---|---|
+| `baidu.primary.cookies` | Baidu Netdisk session note | 安全笔记 |
+| `bilibili.primary.cookies` | Bilibili session note | 社交与通信 |
 | `blendproof.admin-login` | BlendProof site admin | Login |
 | `blendproof.bootstrap-admin` | BlendProof first admin bootstrap | Login |
 | `blendproof.share-access` | Worker runtime `SHARE_ACCESS_SECRET` | Secret |
 | `blendproof.upload-signing` | Worker runtime `UPLOAD_SIGNING_SECRET` | Secret |
-| `cloudflare.itycon.dns` | Cloudflare API Token | DNS management for `itycon.cn` only |
-| `cloudflare.itycon.workers-deploy` | Cloudflare API Token | Workers deploy (Scripts:D1:R2:… Edit) |
+| `cloudflare.itycon.dns` | Cloudflare API Token | 开发与云服务；DNS management for `itycon.cn` |
+| `cloudflare.itycon.workers-deploy` | Cloudflare API Token | 开发与云服务；Workers deployment |
+| `cloudflare.turnstile.universal-adobe-sync` | Universal Adobe Sync Turnstile | 开发与云服务；site verification |
+| `fnos.tunnel.skilldo.appkey` | SkillDo fnOS tunnel app key | NAS与基础设施 |
+| `github.yancongya.pat` | GitHub account token | 开发与云服务 |
+| `hotnode.nas.admin-login` | HotNode NAS administration | NAS与基础设施 |
+| `nas.fnos.smb.mount` | fnOS SMB mount credentials | NAS与基础设施 |
+| `nas.tyconfn.admin-login` | fnOS administration | NAS与基础设施 |
+| `openlist.admin.api-token` | OpenList administration API | NAS与基础设施 |
+| `resend.universal-adobe-sync` | Universal Adobe Sync email API | 开发与云服务 |
+| `skilldo.webdav.password` | SkillDo WebDAV account | NAS与基础设施 |
+| `universal-adobe-sync.blendproof-admin` | Universal Adobe Sync BlendProof integration | 开发与云服务 |
+| `universal-adobe-sync.dev.admin-login` | Universal Adobe Sync development admin | 开发与云服务；2 entries currently share this alias; resolve before credential reads |
+| `universal-adobe-sync.oidc-signing-jwk` | Universal Adobe Sync OIDC signing note | 安全笔记 |
+| `xiaohongshu.primary.cookies` | Xiaohongshu session note | 社交与通信 |
+
+The live metadata audit on 2026-10-14 found 22 managed credential entries across
+21 unique aliases. The duplicate alias is deliberately not deduplicated here:
+compare the two entries and review consumers before changing or removing either.
+The existing GitHub token alias is present, but Agent Ops requires the separate
+`github.yancongya.ghcr-read` alias for private GHCR tests; that alias was absent
+from this audit. Never put its token value in this registry.
 
 Add future NAS, SSH, n8n, database, API and deployment credentials to this
 registry by alias only. The value belongs in Bitwardenagents, not documentation.

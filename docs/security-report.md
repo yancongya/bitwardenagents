@@ -125,3 +125,11 @@
 - 认证边界：Cloudflare Pages 与 Vite 不持有自托管 Node session/PIN 状态，只检查 Bearer 头格式；这不能证明 token 属于 NAS session。上游 Bitwarden 仍执行 token 认证。需要 session/PIN 策略时必须使用自托管 Node 入口。
 - 本地验证：Agent Harness 93/93 通过，覆盖 Pages 未知路由、方法错配、缺失/格式错误 Bearer、跨源写入、常见转发头剥离及保留 Bitwarden 客户端头；Vite middleware 用例覆盖缺失 Bearer、未知路由、协议错配写入和正常同源同步。npm package smoke test、删除兼容回归、cache-sync、cipher 解密、请求超时回归、Web 构建与 `git diff --check` 均通过。
 - 部署状态：尚未部署或推送；本地测试通过后再经项目发布流程审批和独立验收。
+
+## 2026-10-14 凭据分类只读核对
+
+- 方法：通过持久 `bwvault` CLI 读取非回收站条目的脱敏元数据和文件夹归属；没有读取密值或修改密码库。
+- 当前统计：活动条目 727 条；263 条登录条目仍未归类，180 条登录条目位于“待人工复核”，其余 284 条已有文件夹归属。较早记录中的“485 条未分类”已过时，后续分类以本次实时统计为准。
+- 稳定别名：22 条托管凭据记录对应 21 个唯一别名；18 个服务凭据别名（19 条记录，含一组重复）及 3 个会话笔记均已有分类。`universal-adobe-sync.dev.admin-login` 有两条记录共用别名；CLI 会拒绝对重复别名执行精确读取，未删除或合并任何一条。
+- GHCR：Agent Ops 需要单独别名 `github.yancongya.ghcr-read`，本次别名盘点未发现该记录。现有通用 GitHub 别名不能据此证明 GHCR 包读取权限有效。
+- 后续：未归类和待人工复核条目没有足够的当前分类规则，不按名称相似度批量移动。先生成分批、可回读验证的候选清单，再逐批预览和处理。
