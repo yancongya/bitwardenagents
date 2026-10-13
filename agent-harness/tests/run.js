@@ -14,6 +14,9 @@ import { credentialItemName, normalizeAlias } from '../commands/credential.js';
 import { move as moveItems } from '../commands/manage.js';
 import { BitwardenClient } from '../../src/bitwarden-api.js';
 import { proxyRequestDenial, proxyScopesForToken, PROXY_SCOPES } from '../core/proxy-policy.js';
+import { stripProxyForwardingHeaders } from '../core/proxy-policy.js';
+import { onRequest as pagesProxy } from '../../functions/[[path]].js';
+import { proxyContractGuard } from '../../vite.config.js';
 
 let pass = 0, fail = 0;
 
@@ -120,6 +123,68 @@ assertEqual(proxyScopesForToken({ authorization: 'Bearer saved-session', session
 assertEqual(proxyScopesForToken({ authorization: 'Bearer saved-session', sessionToken: 'saved-session' }), undefined, 'no configured scopes preserve saved session behavior');
 assertEqual(proxyScopesForToken({ authorization: 'Bearer issued-token', issuedTokenScopes: new Map([['issued-token', [PROXY_SCOPES.SECRETS]]]) }), [PROXY_SCOPES.SECRETS], 'issued API token gets its server-side scope grant');
 assertEqual(proxyScopesForToken({ authorization: 'Bearer attacker-token', sessionToken: 'saved-session', configuredScopes: [PROXY_SCOPES.READ] }), undefined, 'unrecognized bearer token receives no scope grant');
+// ── Pages proxy boundary (mocked fetch; never connects to Bitwarden) ──
+const originalFetch = globalThis.fetch;
+let pagesFetches = 0;
+let pagesForwardedHeaders;
+globalThis.fetch = async (_url, init) => { pagesFetches++; pagesForwardedHeaders = new Headers(init.headers); return new Response('upstream'); };
+const pagesRequest = (path, init = {}) => new Request(`https://pages.example${path}`, {
+  headers: { Origin: 'https://pages.example', ...(init.headers || {}) }, ...init,
+});
+const pagesContext = (request) => ({ request, next: () => new Response('next') });
+let response = await pagesProxy(pagesContext(pagesRequest('/bw-api/unknown', { headers: { Authorization: 'Bearer token' } })));
+assert(response.status === 403 && pagesFetches === 0, 'Pages rejects unknown vault routes before fetch');
+response = await pagesProxy(pagesContext(pagesRequest('/bw-api/sync', { method: 'PATCH', headers: { Authorization: 'Bearer token' } })));
+assert(response.status === 403 && pagesFetches === 0, 'Pages rejects unknown methods before fetch');
+response = await pagesProxy(pagesContext(pagesRequest('/bw-identity/connect/token', { method: 'POST', headers: { Origin: 'https://evil.example' } })));
+assert(response.status === 403 && pagesFetches === 0, 'Pages rejects cross-origin identity login');
+response = await pagesProxy(pagesContext(pagesRequest('/bw-api/ciphers', { method: 'POST', headers: { Authorization: 'Bearer token', Origin: 'https://evil.example' } })));
+assert(response.status === 403 && pagesFetches === 0, 'Pages rejects cross-origin vault writes');
+response = await pagesProxy(pagesContext(pagesRequest('/bw-api/sync', { headers: { Authorization: 'Basic token' } })));
+assert(response.status === 401 && pagesFetches === 0, 'Pages rejects malformed vault bearer before fetch');
+response = await pagesProxy(pagesContext(pagesRequest('/bw-api/sync', { headers: { Authorization: 'Bearer token' } })));
+assert(response.status === 200 && pagesFetches === 1, 'Pages allows an authenticated UI sync');
+response = await pagesProxy(pagesContext(pagesRequest('/bw-api/sync', { headers: {
+  Authorization: 'Bearer token', 'X-Forwarded-Port': '444', 'X-Forwarded-Server': 'attacker',
+  'X-Client-IP': '192.0.2.1', 'CF-Connecting-IP': '192.0.2.2', 'X-Bitwarden-Client-Name': 'web',
+} })));
+assert(response.status === 200 && pagesFetches === 2, 'Pages permits a sync request with ordinary client headers');
+assert(!pagesForwardedHeaders.has('x-forwarded-port') && !pagesForwardedHeaders.has('x-forwarded-server')
+  && !pagesForwardedHeaders.has('x-client-ip') && !pagesForwardedHeaders.has('cf-connecting-ip'), 'Pages strips forwarded/client-routing headers');
+assert(pagesForwardedHeaders.get('x-bitwarden-client-name') === 'web', 'Pages preserves required Bitwarden client headers');
+const forwardedFixture = new Headers({
+  Host: 'upstream.attacker.example', Forwarded: 'for=192.0.2.3', Via: 'proxy',
+  'X-Original-URL': '/admin', 'CF-Ray': 'abc', Connection: 'X-Trace, keep-alive',
+  'X-Trace': 'spoofed', Accept: 'application/json',
+});
+stripProxyForwardingHeaders(forwardedFixture);
+assert(forwardedFixture.has('accept') && [...forwardedFixture.keys()].length === 1,
+  'shared forwarding-header policy strips host, routing, and connection-nominated headers while preserving ordinary headers');
+globalThis.fetch = originalFetch;
+
+// ── Vite development proxy contract guard (middleware only; no upstream network) ──
+let viteGuard;
+proxyContractGuard().configureServer({ middlewares: { use: (middleware) => { viteGuard = middleware; } } });
+const runViteGuard = ({ url, method = 'GET', origin = 'http://localhost:5173', host = 'localhost:5173', authorization } = {}) => {
+  let continued = false;
+  const responseState = { statusCode: 200, headers: {}, body: '' };
+  const req = { url, method, headers: { host, origin, ...(authorization ? { authorization } : {}) }, socket: { encrypted: false } };
+  const res = {
+    setHeader: (key, value) => { responseState.headers[key] = value; },
+    end: (body) => { responseState.body = body; },
+  };
+  Object.defineProperty(res, 'statusCode', { get: () => responseState.statusCode, set: (value) => { responseState.statusCode = value; } });
+  viteGuard(req, res, () => { continued = true; });
+  return { continued, ...responseState };
+};
+let viteResult = runViteGuard({ url: '/bw-api/sync' });
+assert(!viteResult.continued && viteResult.statusCode === 401, 'Vite blocks vault routes without a bearer header');
+viteResult = runViteGuard({ url: '/bw-api/unknown', authorization: 'Bearer token' });
+assert(!viteResult.continued && viteResult.statusCode === 403, 'Vite blocks unknown vault routes before proxying');
+viteResult = runViteGuard({ url: '/bw-api/sync', method: 'POST', origin: 'https://localhost:5173', authorization: 'Bearer token' });
+assert(!viteResult.continued && viteResult.statusCode === 403, 'Vite rejects cross-scheme writes');
+viteResult = runViteGuard({ url: '/bw-api/sync', authorization: 'Bearer token' });
+assert(viteResult.continued, 'Vite permits a same-origin bearer sync');
 
 // ── manage move (mocked remote API; never connects to a vault) ──
 const moveFixture = ({ moveErrors = {}, waitFn = async () => {}, randomFn = () => 0 } = {}) => {

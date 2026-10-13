@@ -111,9 +111,17 @@
 - 验证：Agent Harness 55 项通过，覆盖远端归属一致、上游返回成功但回读未变、核验同步失败等路径；package smoke test、cache-sync、语法检查和 `git diff --check` 通过。提交 `8c3be157462056c665f6dfdc9c9f2561c795ece3` 已推送并部署为 `bwvault:release-8c3be157462056c6`；部署脚本确认容器健康且 `/data` 挂载保持不变，Agent Ops 二次检查确认新镜像正在运行。SkillDo 中央 `bwvault-cli` 已更新到同一提交，远端 Skill 内容哈希匹配。
 - 后续：库中仍有 485 条未分类记录；本轮未再批量重试旧的分类移动请求，避免基于不完整的旧条目清单误操作。后续按清晰线索分批预览并用新版本回读验证。
 
-## 2026-10-13 Web 代理能力 scope 配置（待发布）
+## 2026-10-13 Web 代理能力 scope 配置（已合并，NAS 待部署验收）
 
 - 变更：增加服务端 `BWVAULT_PROXY_SCOPES` 进程级能力配置。允许值为 `vault:read`、`vault:secrets`、`vault:write`、`vault:delete`；授权只从服务端配置、已保存 session token 或进程签发的短期 token 状态解析，不读取客户端 header/query 作为 scope 来源。未设置变量时保留既有 Web 会话行为。
 - 路由边界：`/folders` 元数据读取使用 `vault:read`；`/sync`、密码库条目读取使用 `vault:secrets`；新增/修改使用 `vault:write`；删除路由以及 `DELETE` 请求使用 `vault:delete`。
-- 限制：配置是进程级全局能力上限，不是用户/角色授权系统，也不更改 Bitwarden 上游账号权限；未配置时不会启用新的 scope 限制。该变更尚未推送或部署，不能据此声称线上已受 scope 保护。
-- 验证：`node --check server.js`、`node agent-harness/tests/run.js` 和 `git diff --check` 通过；完整构建和 CI/线上验收待执行。
+- 限制：配置是进程级全局能力上限，不是用户/角色授权系统，也不更改 Bitwarden 上游账号权限；NAS 未配置变量时不会启用 scope 限制。源码已合并到 `main`，NAS 部署和线上验收仍待完成。
+- 验证：PR Verify 与 Cloudflare Pages 检查通过；本地 `node --check server.js`、Agent Harness 与 `git diff --check` 通过。
+
+## 2026-10-13 Cloudflare Pages 与 Vite 代理策略（本地待验证）
+
+- 范围：`functions/[[path]].js` 的 Cloudflare Pages Functions 代理、Vite 开发代理及共享 `agent-harness/core/proxy-policy.js`。
+- 修复：Pages 与 Vite 使用同一方法/路径白名单；API 请求要求格式正确的 Bearer 头；身份登录与写操作要求精确同源；Pages 移除标准转发、Cloudflare 来源地址及常见客户端路由头。Vite 同源判断同时比较协议与 Host。
+- 认证边界：Cloudflare Pages 与 Vite 不持有自托管 Node session/PIN 状态，只检查 Bearer 头格式；这不能证明 token 属于 NAS session。上游 Bitwarden 仍执行 token 认证。需要 session/PIN 策略时必须使用自托管 Node 入口。
+- 本地验证：Agent Harness 93/93 通过，覆盖 Pages 未知路由、方法错配、缺失/格式错误 Bearer、跨源写入、常见转发头剥离及保留 Bitwarden 客户端头；Vite middleware 用例覆盖缺失 Bearer、未知路由、协议错配写入和正常同源同步。npm package smoke test、删除兼容回归、cache-sync、cipher 解密、请求超时回归、Web 构建与 `git diff --check` 均通过。
+- 部署状态：尚未部署或推送；本地测试通过后再经项目发布流程审批和独立验收。

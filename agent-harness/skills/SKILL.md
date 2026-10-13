@@ -52,7 +52,8 @@ printf '%s' "$SECRET" | bwvault credential set --alias svc.api.token --username 
 ## Web 与容器安全边界
 
 - `/api/session` 写入必须通过同源、客户端解锁及 schema 检查；PIN 解锁须绑定客户端、限时且限速。
-- 浏览器 Bitwarden 代理只允许登录所需的同源 `prelogin` / `connect/token`，以及 Web UI 实际使用的同步、条目和文件夹路由；保险库请求必须匹配当前会话，或由本进程短期登记的同源登录 token，PIN 已配置时还必须解锁，写请求必须同源。CLI 仍使用自己的命令权限边界。
+- 自托管 Node 浏览器代理只允许登录所需的同源 `prelogin` / `connect/token`，以及 Web UI 实际使用的同步、条目和文件夹路由；保险库请求必须匹配当前会话，或由本进程短期登记的同源登录 token，PIN 已配置时还必须解锁，写请求必须同源。CLI 仍使用自己的命令权限边界。
+- Cloudflare Pages 与 Vite 共享方法/路径白名单、同源身份登录与写入限制，并要求 Vault API 带格式正确的 Bearer 头；两者不持有自托管 Node 的 session 或 PIN 解锁状态，Bearer 格式检查不等同于 session 身份验证，真实上游认证仍由 Bitwarden 执行。
 - 不把 HTTP 3000 暴露到不可信网络；NAS Web 使用 HTTPS 3443。静态路径必须限制在构建产物目录内。
 - 生产容器保留原有数据挂载、非 root 用户、只读根文件系统、丢弃 Linux capabilities 和 `no-new-privileges`。
 - `/data/session` 是敏感数据，保留既有挂载和 `0600` 文件权限。不得用新的 named volume 诊断线上会话。
