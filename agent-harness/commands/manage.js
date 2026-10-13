@@ -20,6 +20,40 @@ import { digestSecret } from '../core/security.js';
 import { createClient, encryptString } from '../core/bridge.js';
 import * as out from '../core/display.js';
 
+const MOVE_RATE_LIMIT_MAX_RETRIES = 3;
+const MOVE_RATE_LIMIT_MAX_DELAY_MS = 30_000;
+
+function wait(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function moveRateLimitDelay(error, retryNumber, random = Math.random) {
+  if (Number.isFinite(error?.retryAfterMs)) {
+    // Do not retry earlier than a valid server instruction. If it exceeds the
+    // bounded wait, stop this batch instead of sleeping unexpectedly long.
+    if (error.retryAfterMs > MOVE_RATE_LIMIT_MAX_DELAY_MS) return null;
+    return Math.max(250, error.retryAfterMs);
+  }
+  const backoff = Math.min(1000 * (2 ** retryNumber), 8000);
+  return Math.min(MOVE_RATE_LIMIT_MAX_DELAY_MS, backoff + Math.floor(random() * 251));
+}
+
+async function moveWithRateLimitRetry(client, id, targetId, dependencies) {
+  const waitFn = dependencies.waitFn || wait;
+  const random = dependencies.randomFn || Math.random;
+  for (let retryNumber = 0; ; retryNumber++) {
+    try {
+      await client.bulkMoveCiphersToFolder([id], targetId);
+      return;
+    } catch (error) {
+      if (classifyMoveFailure(error) !== 'rateLimited' || retryNumber >= MOVE_RATE_LIMIT_MAX_RETRIES) throw error;
+      const delay = moveRateLimitDelay(error, retryNumber, random);
+      if (delay === null) throw error;
+      await waitFn(delay);
+    }
+  }
+}
+
 function requireSession() {
   const s = session.loadSession();
   if (!s) throw new Error('Not authenticated. Run: bwvault auth login --api-key --email you@example.com');
@@ -130,7 +164,8 @@ export async function dedup(opts) {
 }
 
 /** Move exact item IDs to a folder or No Folder. Sync is always remote-first. */
-export async function move(opts, { prepareFn = prepare, verifyFn } = {}) {
+export async function move(opts, dependencies = {}) {
+  const { prepareFn = prepare, verifyFn } = dependencies;
   if (!Array.isArray(opts.ids) || opts.ids.length === 0 || opts.ids.some((id) => !id)) {
     throw new Error('At least one --id is required');
   }
@@ -153,6 +188,7 @@ export async function move(opts, { prepareFn = prepare, verifyFn } = {}) {
     notFound: 0,
     conflict: 0,
     rateLimited: 0,
+    rateLimitStopped: 0,
     serverError: 0,
     network: 0,
     requestError: 0,
@@ -160,6 +196,7 @@ export async function move(opts, { prepareFn = prepare, verifyFn } = {}) {
     verificationUnavailable: 0,
   };
   const submitted = [];
+  let rateLimitStopped = false;
   for (const id of ids) {
     const cipher = byId.get(id);
     if (!cipher) {
@@ -167,11 +204,16 @@ export async function move(opts, { prepareFn = prepare, verifyFn } = {}) {
       failures.notInRemoteSync += 1;
       continue;
     }
+    if (rateLimitStopped) {
+      results.push({ status: 'failed', reason: 'rateLimitStopped' });
+      failures.rateLimitStopped += 1;
+      continue;
+    }
     try {
       // Use the server's dedicated move endpoint. It changes only FolderId and
       // leaves the encrypted cipher payload and per-item Key untouched.
       if (opts.apply) {
-        await client.bulkMoveCiphersToFolder([id], targetId);
+        await moveWithRateLimitRetry(client, id, targetId, dependencies);
         submitted.push(id);
         results.push({ status: 'submitted' });
       } else {
@@ -182,6 +224,7 @@ export async function move(opts, { prepareFn = prepare, verifyFn } = {}) {
       const reason = classifyMoveFailure(error);
       results.push({ status: 'failed', reason });
       failures[reason] += 1;
+      if (reason === 'rateLimited') rateLimitStopped = true;
     }
   }
 

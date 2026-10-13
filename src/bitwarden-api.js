@@ -578,7 +578,21 @@ export class BitwardenClient {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ ids, folderId }),
     });
-    if (!res.ok) throw new Error(`Bulk move failed: ${res.status}`);
+    if (!res.ok) {
+      const error = new Error(`Bulk move failed: ${res.status}`);
+      error.statusCode = res.status;
+      if (res.status === 429) {
+        const retryAfter = res.headers?.get('Retry-After')?.trim();
+        if (retryAfter && /^\d+$/.test(retryAfter)) {
+          const delayMs = Number(retryAfter) * 1000;
+          error.retryAfterMs = Number.isFinite(delayMs) ? delayMs : Number.MAX_SAFE_INTEGER;
+        } else if (retryAfter && /^(Mon|Tue|Wed|Thu|Fri|Sat|Sun), \d{2} (Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec) \d{4} \d{2}:\d{2}:\d{2} GMT$/.test(retryAfter)) {
+          const dateMs = Date.parse(retryAfter);
+          if (Number.isFinite(dateMs)) error.retryAfterMs = Math.max(0, dateMs - Date.now());
+        }
+      }
+      throw error;
+    }
   }
 
   /**
